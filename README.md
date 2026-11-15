@@ -114,7 +114,7 @@ Skill `ut-report`. Đầu vào: mã màn `{SID}`, link MR (Branch), link Redmine
 | `Kết quả` | `OK` / `NG` / `NA` / `NT` / `NG -> OK` |
 | `Note/Lý do` | Lý do khác hệ cũ, lý do `NA`/`NG`, link CR, nguồn `file:line` |
 
-Mười nhóm theo thứ tự: Layout (case đầu là `Theo figma`) → Quyền truy cập → Mở màn (初期表示) →
+Mười nhóm theo thứ tự: Layout (case đầu là `Theo figma`) → Quyền truy cập → Mở màn →
 nhóm riêng của màn → Validation → Nghiệp vụ theo từng nút → cập nhật đồng thời →
 Xử lý Database → Message / Dialog → CR.
 
