@@ -41,7 +41,7 @@ plugin-architecture
 │   │   └── scripts/build_report.py  YAML case → xlsx (cần pyyaml, openpyxl)
 │   └── ui-image-check/
 │       └── SKILL.md         so sánh ảnh mockup với code, không sửa code
-├── README.md                install (Claude Code + omp), layout, cách test hook
+├── README.md                cho người dùng: tính năng, cài, dùng, gate, xử lý lỗi
 └── package.json             metadata: tên, version, license + `omp.extensions` khai báo extension cho omp
 ```
 
@@ -128,10 +128,10 @@ Báo cáo: Verdict đứng đầu, mỗi miss là 1 câu, xong rồi dừng.
 ## Verify — chạy gì để chắc map đúng
 
 ```text
-python3 scripts/test_fe_gate.py          94 test hành vi gate (deny/allow, intent, conflict)
+python3 scripts/test_fe_gate.py          96 test hành vi gate (deny/allow, intent, conflict)
 cat skills/fe-kit/evals/triggers.json    16 query mẫu: should_trigger true/false — kiểm intent regex
 sh scripts/fe-gate.sh < event.json        chạy thật 1 event với payload giả
-README.md § Test                         chứng minh host nạp plugin + hook có fire
+README.md § Kiểm tra đã sống             chứng minh host nạp plugin + hook có fire
 ```
 
 Đã chạy thật với payload giả (2026-11-15, fixture `/tmp/fe-gate-fixture/`):
