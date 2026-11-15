@@ -129,9 +129,10 @@ Báo cáo: Verdict đứng đầu, mỗi miss là 1 câu, xong rồi dừng.
 
 ```text
 python3 scripts/test_fe_gate.py          96 test hành vi gate (deny/allow, intent, conflict)
+node --test extensions/fe-gate.test.ts   14 test extension omp: verdict, prompt, chặn edit
 cat skills/fe-kit/evals/triggers.json    16 query mẫu: should_trigger true/false — kiểm intent regex
 sh scripts/fe-gate.sh < event.json        chạy thật 1 event với payload giả
-README.md § Kiểm tra đã sống             chứng minh host nạp plugin + hook có fire
+claude --debug -p "review the diff"      rồi grep "Loading hooks from plugin: fe-kit" ~/.claude/debug/latest
 ```
 
 Đã chạy thật với payload giả (2026-11-15, fixture `/tmp/fe-gate-fixture/`):

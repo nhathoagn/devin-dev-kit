@@ -258,13 +258,6 @@ rules/                   5 rule always-on
 agents/reviewer.md       reviewer đọc diff
 ```
 
-Test — 96 case cho gate, 14 case cho extension omp, tất cả pass:
-
-```bash
-python3 scripts/test_fe_gate.py
-node --test extensions/fe-gate.test.ts
-```
-
 ## Đọc tiếp
 
 | Tài liệu | Nội dung |
