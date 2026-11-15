@@ -41,7 +41,7 @@ plugin-architecture
 │   │   └── scripts/build_report.py  YAML case → xlsx (cần pyyaml, openpyxl)
 │   └── ui-image-check/
 │       └── SKILL.md         so sánh ảnh mockup với code, không sửa code
-├── README.md                cho người dùng: tính năng, cài, dùng, gate, xử lý lỗi
+├── README.md                cho người dùng: tính năng, review, cài, yêu cầu, cấu trúc
 └── package.json             metadata: tên, version, license + `omp.extensions` khai báo extension cho omp
 ```
 

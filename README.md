@@ -73,59 +73,6 @@ Skill `fe-kit` đi theo đúng thứ tự này. Mỗi playbook nói field nào b
 | 5 | Senior Audit | Sáu lăng kính: reuse, kiến trúc, luồng vận hành, xử lý lỗi, tải, khả năng mở rộng. Mỗi finding có `file:line`, mức `high` / `medium` / `low`, và cái mất nếu để nguyên |
 | 6 | Feature Isolation | Hành vi mới trên màn đã có: chỗ đặt, file mới, một call ở file cũ |
 
-## Sáu playbook
-
-Một việc, một playbook. Đọc đúng file đó, không đọc file khác.
-
-| Việc | Playbook | Điểm riêng |
-|---|---|---|
-| Component, page, form, hook mới | `new-ui` | Ownership rồi reuse, sau đó mới tới code |
-| Sai hành vi, sai giá trị, màn trắng, mất input | `fix-bug` | Đòi `Trigger:` `Expected:` `Actual:`; không vá triệu chứng |
-| Diff trước commit | `review-diff` | Tác giả không chạy playbook này |
-| Tách, chuyển, cấu trúc lại UI có sẵn | `refactor-ui` | Ưu tiên `reuse` / `extend` hơn file shared mới |
-| Waterfall, bundle, re-render, list jank | `perf-ui` | Ownership ghi `n/a` nếu không chuyển code sang folder khác |
-| Kiểm, dọn, rút gọn UI có sẵn, không đổi hành vi | `review-ui` | Report riêng, không dùng để chấm diff của chính mình |
-
-Bỏ qua mọi playbook khi là one-line fix, pure style tweak, hoặc không phải frontend — và nói rõ lý do.
-One-line được định nghĩa **theo hành vi**, không theo số dòng: thay đổi runtime behavior là không one-line,
-dù chỉ sửa một dòng.
-
----
-
-## Cổng edit
-
-### Nhãn phải có
-
-| Nhãn | Khi nào | Ví dụ |
-|---|---|---|
-| `Runtime owner:` | Mọi lần sửa file nguồn | `Runtime owner: OrderForm` |
-| `Decision:` | Mọi lần sửa file nguồn | `Decision: extend` |
-| `Trigger:` | Prompt báo lỗi | `Trigger: bấm Lưu khi ngày trống` |
-| `Expected:` | Cùng trường hợp | `Expected: hiện lỗi inline` |
-| `Actual:` | Cùng trường hợp | `Actual: lưu được, màn trắng` |
-
-Nhãn phải nằm trong phần trả lời hiện tại, sau request gần nhất và trước lệnh edit.
-Bảng markdown không tính. Label in đậm hoặc nghiêng với dấu hai chấm ở ngoài vẫn hợp lệ
-(`**Decision**: extend`). Một dòng có giá trị thật mới tính — dòng template rỗng trong
-`SKILL.md` không qua cửa.
-
-### Sau khi ghi
-
-| Kiểm | Kết quả |
-|---|---|
-| Conflict marker còn trong file | `Conflict markers remain in {path}. Finish the resolution before the next edit.` |
-| `<repo>/.claude/rules.sh` chạy và fail | `VI PHẠM RULE / LỖI CHECK. Sửa ngay trước khi làm tiếp:` + chi tiết |
-| Edit đang là bug fix | Chèn chỉ dẫn viết unit test chạy đúng `Actual` |
-
-### Thời gian và an toàn
-
-- Trước khi deny, gate đọc lại transcript tới 10 lần, cách nhau 0.3s, vì host có thể ghi reply
-  của agent vào transcript sau khi hook đọc. Edit được cho qua thì không chờ.
-- Gate treo quá 10 giây, lỗi, hoặc không in gì → **fail open**. Không chặn oan vì hạ tầng.
-- Edit chỉ giữ, bỏ, hoặc đổi thứ tự các dòng đã có trong conflict block thì được miễn (không thêm dòng mới).
-
----
-
 ## Review diff
 
 Người viết diff không được chấm diff đó.
@@ -234,15 +181,6 @@ omp plugin link .
 - `sh` POSIX và `python3`. Windows cần Git Bash.
 - Thiếu `python3` thì hook im lặng, plugin vẫn load — gate không chạy.
 - `ut-report` cần `pyyaml` và `openpyxl`.
-
-## Sự cố thường gặp
-
-| Hiện tượng | Cách sửa |
-|---|---|
-| Edit bị chặn hoài dù đã có plan | Nhãn nằm trong thinking. Ghi nó trong reply, đúng hai dòng |
-| Không thấy rule được inject | `/plugin install` chưa chọn scope → cài lại |
-| omp không chặn edit | Extension chưa load → kiểm `omp.extensions` trong `package.json` |
-| Sửa xong báo còn conflict marker | Xoá `<<<<<<<`, `=======`, `>>>>>>>` rồi sửa lại |
 
 ## Cấu trúc
 
