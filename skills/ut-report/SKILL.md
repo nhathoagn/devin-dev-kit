@@ -30,6 +30,25 @@ Sheet chuẩn để viết theo: file UT mẫu mà dự án chỉ định (hỏi
 4. Có kết quả parity sẵn (`legacy-parity-validation`) hoặc so ảnh (`ui-image-check`) → dùng lại,
    không chạy lại.
 
+## 0.5 Màn không có hệ cũ (tính năng mới)
+
+Hệ cũ không có màn này thì không so được. Chân lý là spec/CR/figma, không phải code hệ cũ.
+
+1. Nguồn, thay cho "code hệ cũ" ở §0.3: spec màn → CR → figma. Thiếu cả ba → dừng, hỏi người dùng.
+   Không suy ngược hành vi mong đợi từ code hệ mới.
+2. Cột `Hệ cũ`: mọi dòng `-`. Không ghi `(Chưa xác nhận)`.
+3. Cột `Hệ mới`: hành vi theo spec, kèm `file:line` khi cần.
+4. `OK`: đã chạy thật trên UI hệ mới và khớp spec. Note **bắt buộc** ghi nguồn:
+   `Theo spec {SID} §…`, `Theo CR #…`, hoặc `Theo figma`.
+   `NG`: sai spec. `NA`: spec không nói tới — Note mục spec còn thiếu. `NT`: chưa chạy.
+5. Nhóm 10 dùng tên `CR / chức năng không có`. Mỗi yêu cầu trong CR là một case.
+6. Bỏ case chỉ có nghĩa khi có hệ cũ: so SQL hệ cũ, parity làm tròn, port load default từ loader cũ,
+   "hành vi lạ của hệ cũ".
+7. Giữ và vẫn điền: Layout (`Theo figma`), Quyền truy cập, Mở màn, Validation, Nghiệp vụ (từ spec),
+   Database (bảng ghi, cột, điều kiện), Message.
+8. Banner `B5` nói về "đồng nhất hệ mới và hệ cũ": template không đổi, nên giữ nguyên. Mỗi dòng tự
+   nói nguồn là spec, nên banner không sai. Team có template riêng cho feat mới → theo template đó.
+
 ## 1. Template — không đổi
 
 Bố cục một sheet (theo `UT-AB1010.xlsx`):
@@ -94,10 +113,11 @@ Giữ thứ tự dưới, bỏ nhóm không áp dụng. Thêm nhóm riêng của
 
 ## 2. Quy tắc điền Kết quả
 
-- **Mọi case phải mở UI thật của cả hai hệ để test** (trình duyệt, gõ vào ô, bấm nút, đọc màn hình).
+- **Mọi case phải mở UI thật để test** (trình duyệt, gõ vào ô, bấm nút, đọc màn hình).
+  Có hệ cũ thì mở cả hai; màn không có hệ cũ thì chỉ UI hệ mới (§0.5).
   Không thay UI bằng gọi API/HTTP trực tiếp, không kết luận theo code. API/code chỉ ghi thêm vào Note làm bằng chứng.
   Trạng thái khó tạo (đang gửi, hết phiên) cũng làm trên UI: giữ request trong trình duyệt, đăng xuất ở tab khác.
-- `OK` — đã chạy thật, hệ mới giống hệ cũ.
+- `OK` — đã chạy thật, hệ mới giống hệ cũ; màn không có hệ cũ thì khớp spec (§0.5).
   Hệ mới khác hệ cũ có lý do được chấp nhận → vẫn `OK`, Note **bắt buộc** ghi lý do (xem bảng dưới).
 - `NG` — đã chạy thật, sai. Note ghi hành vi thật + `file:line` chỗ sai.
 - `NG -> OK` — lần đầu NG, đã sửa, chạy lại OK. Note: `NG : {lỗi} -> Đã fix`, vd. `NG : Sai message -> Đã fix`.
