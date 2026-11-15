@@ -194,6 +194,9 @@ skills/ui-image-check/   so ảnh với code
 skills/ut-report/        báo cáo UT + build_report.py
 rules/                   5 rule always-on
 agents/reviewer.md       reviewer đọc diff
+package.json             metadata + omp.extensions
+README.md                trang này
+CODEMAP.md               bản đồ code: module nào gọi module nào
 ```
 
 ## Đọc tiếp
