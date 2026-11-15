@@ -50,32 +50,156 @@ Lý do: một phiên trước đó agent ghi plan trong thinking, gate không đ
 
 **Kiến trúc không có chủ.** Mỗi lần sửa file nguồn phải ghi `Runtime owner:` — component,
 hook, hay module nào thật sự giữ state và business rule. Không có nhãn, không có edit.
-Playbook `references/ownership.md` còn đòi phân biệt first-fix owner và canonical owner,
-và nêu tên các owner cạnh tranh là sai.
 
 **Code viết lần thứ hai.** `Decision:` phải là `reuse`, `extend`, `feature-local`,
 hoặc `shared`. `shared` chỉ hợp lệ khi có từ hai consumer thật trở lên, nêu tên.
 Bug fix còn bị hỏi: giá trị này đã có state hay prop nào giữ chưa?
 
 **Tác giả tự chấm bài mình.** Người viết diff không được review diff đó. Claude Code có
-agent `fe-kit:reviewer` read-only; omp dùng một context sạch chỉ nhận diff range và
-playbook. Không đưa ghi chú của tác giả, không đưa kết luận.
+agent `fe-kit:reviewer` read-only; omp dùng một context sạch chỉ nhận diff range và playbook.
 
 ---
 
-## Bên trong có gì
+## Sáu field phải điền trước khi code
 
-| | |
+Skill `fe-kit` đi theo đúng thứ tự này. Mỗi playbook nói field nào bắt buộc.
+
+| # | Field | Ghi gì |
+|---|---|---|
+| 1 | Architecture Ownership | Runtime owner, first-fix owner, canonical owner, các owner cạnh tranh là sai, hướng dọn |
+| 2 | Reuse-first | Responsibility, exemplar và lý do khớp, quyết định `reuse` / `extend` / `feature-local` / `shared`, khoảng trống, vì sao chọn shape đó |
+| 3 | Performance | Waterfall, bundle, data fetching, re-render, loading / error / empty, rủi ro còn lại. Kiểm đúng thứ tự này |
+| 4 | Code Quality | Bảng sweep từ Names tới Design and behavior. Dòng `clean` mà không có search thì chưa xong |
+| 5 | Senior Audit | Sáu lăng kính: reuse, kiến trúc, luồng vận hành, xử lý lỗi, tải, khả năng mở rộng. Mỗi finding có `file:line`, mức `high` / `medium` / `low`, và cái mất nếu để nguyên |
+| 6 | Feature Isolation | Hành vi mới trên màn đã có: chỗ đặt, file mới, một call ở file cũ |
+
+## Sáu playbook
+
+Một việc, một playbook. Đọc đúng file đó, không đọc file khác.
+
+| Việc | Playbook | Điểm riêng |
+|---|---|---|
+| Component, page, form, hook mới | `new-ui` | Ownership rồi reuse, sau đó mới tới code |
+| Sai hành vi, sai giá trị, màn trắng, mất input | `fix-bug` | Đòi `Trigger:` `Expected:` `Actual:`; không vá triệu chứng |
+| Diff trước commit | `review-diff` | Tác giả không chạy playbook này |
+| Tách, chuyển, cấu trúc lại UI có sẵn | `refactor-ui` | Ưu tiên `reuse` / `extend` hơn file shared mới |
+| Waterfall, bundle, re-render, list jank | `perf-ui` | Ownership ghi `n/a` nếu không chuyển code sang folder khác |
+| Kiểm, dọn, rút gọn UI có sẵn, không đổi hành vi | `review-ui` | Report riêng, không dùng để chấm diff của chính mình |
+
+Bỏ qua mọi playbook khi là one-line fix, pure style tweak, hoặc không phải frontend — và nói rõ lý do.
+One-line được định nghĩa **theo hành vi**, không theo số dòng: thay đổi runtime behavior là không one-line,
+dù chỉ sửa một dòng.
+
+---
+
+## Cổng edit
+
+### Nhãn phải có
+
+| Nhãn | Khi nào | Ví dụ |
+|---|---|---|
+| `Runtime owner:` | Mọi lần sửa file nguồn | `Runtime owner: OrderForm` |
+| `Decision:` | Mọi lần sửa file nguồn | `Decision: extend` |
+| `Trigger:` | Prompt báo lỗi | `Trigger: bấm Lưu khi ngày trống` |
+| `Expected:` | Cùng trường hợp | `Expected: hiện lỗi inline` |
+| `Actual:` | Cùng trường hợp | `Actual: lưu được, màn trắng` |
+
+Nhãn phải nằm trong phần trả lời hiện tại, sau request gần nhất và trước lệnh edit.
+Bảng markdown không tính. Label in đậm hoặc nghiêng với dấu hai chấm ở ngoài vẫn hợp lệ
+(`**Decision**: extend`). Một dòng có giá trị thật mới tính — dòng template rỗng trong
+`SKILL.md` không qua cửa.
+
+### Sau khi ghi
+
+| Kiểm | Kết quả |
 |---|---|
-| **Skill `fe-kit`** | Entry cho mọi việc FE không nhỏ. Chọn 1 trong 6 playbook: `new-ui`, `fix-bug`, `refactor-ui`, `perf-ui`, `review-ui`, `review-diff` |
-| **Cổng edit** | Chặn `Write` / `Edit` / `MultiEdit` thiếu nhãn; kiểm conflict marker và `rules.sh` sau khi ghi |
-| **Skill `ui-image-check`** | Một ảnh mockup vào, một báo cáo chênh lệch ra: item có / thiếu / lệch, mỗi item `file:line` |
-| **Skill `ut-report`** | Một màn ra file `.xlsx` đúng template team: Hệ cũ ↔ Hệ mới, `OK` / `NG` / `NG -> OK` |
-| **5 rule always-on** | `fe-implementation`, `reuse-duplication`, `modules`, `conflict-fix`, `review-diff` |
+| Conflict marker còn trong file | `Conflict markers remain in {path}. Finish the resolution before the next edit.` |
+| `<repo>/.claude/rules.sh` chạy và fail | `VI PHẠM RULE / LỖI CHECK. Sửa ngay trước khi làm tiếp:` + chi tiết |
+| Edit đang là bug fix | Chèn chỉ dẫn viết unit test chạy đúng `Actual` |
 
-Đằng sau mỗi playbook là bộ reference ép agent trả lời theo đúng thứ tự:
-Architecture Ownership → Reuse-first → Performance Check → Code Quality → Senior Audit
-(reuse, kiến trúc, luồng vận hành, xử lý lỗi, tải, khả năng mở rộng) → Feature Isolation.
+### Thời gian và an toàn
+
+- Trước khi deny, gate đọc lại transcript tới 10 lần, cách nhau 0.3s, vì host có thể ghi reply
+  của agent vào transcript sau khi hook đọc. Edit được cho qua thì không chờ.
+- Gate treo quá 10 giây, lỗi, hoặc không in gì → **fail open**. Không chặn oan vì hạ tầng.
+- Edit chỉ giữ, bỏ, hoặc đổi thứ tự các dòng đã có trong conflict block thì được miễn (không thêm dòng mới).
+
+---
+
+## Review diff
+
+Người viết diff không được chấm diff đó.
+
+| Host | Ai review |
+|---|---|
+| Claude Code | Agent `fe-kit:reviewer`, tool `Read` / `Grep` / `Glob` / `Bash`, không sửa, không commit, không spawn reviewer khác |
+| omp | Một context mới, nhiệm vụ duy nhất là diff range + `skill://fe-kit/playbooks/review-diff.md` |
+
+Không đưa ghi chú của tác giả. Reviewer thiếu playbook path trong task thì dừng, không tự bịa checklist.
+Nó đi hết `references/REVIEW_CHECKLIST.md` rồi F1–F22 trong `references/review-checks.md`, và
+tìm file spec của task trước khi chấm scope.
+
+Report theo `references/review-output.md`: kết luận đứng đầu (một hoặc hai câu, có đưa lên được không),
+sau đó mỗi finding một đoạn — tên đúng trong code, `file:dòng` đếm thật, và sửa thế nào.
+Không ghi PASS / FAIL / blocker / major / minor, không kể file đã mở mà không có việc.
+
+---
+
+## So một ảnh với code
+
+Skill `ui-image-check`. Đầu vào: một ảnh (`.svg`, `.png`, `.jpg`, hoặc dán trong chat),
+tuỳ chọn mã màn. Nhiều hơn một màn khớp tiêu đề → hỏi, không đoán.
+
+Ra báo cáo chênh lệch: từng item trong ảnh, có hay thiếu trong code, chữ / thứ tự / trạng thái /
+kích thước có khớp không, kèm `file:line`. Rồi đối chiếu runtime bằng ảnh chụp màn đang chạy.
+Skill này **không sửa code**.
+
+## Báo cáo UT
+
+Skill `ut-report`. Đầu vào: mã màn `{SID}`, link MR (Branch), link Redmine.
+Đầu ra: một file `.xlsx` đúng template team, một sheet cho màn, sheet riêng cho batch con.
+
+| Cột | Nội dung |
+|---|---|
+| `#`, `Nhóm` | Số và tên nhóm, gộp ô |
+| `Trường hợp` | `{nhóm}.{số}` + điều kiện / thao tác, script tự thêm mã |
+| `Hệ cũ`, `Hệ mới` | Hành vi thật của từng hệ. Màn không có hệ cũ: `-` và hành vi theo spec |
+| `Kết quả` | `OK` / `NG` / `NA` / `NT` / `NG -> OK` |
+| `Note/Lý do` | Lý do khác hệ cũ, lý do `NA`/`NG`, link CR, nguồn `file:line` |
+
+Mười nhóm theo thứ tự: Layout (case đầu là `Theo figma`) → Quyền truy cập → Mở màn (初期表示) →
+nhóm riêng của màn → Validation → Nghiệp vụ theo từng nút → cập nhật đồng thời →
+Xử lý Database → Message / Dialog → CR.
+
+Luật cứng: mọi case phải chạy thật trên UI, không kết luận theo code; đọc code thôi thì `NT`
+kèm `Theo code (chưa chạy)`. Sinh file bằng `skills/ut-report/scripts/build_report.py`
+(cần `pyyaml`, `openpyxl`). Tính năng mới không có hệ cũ: xem §0.5 trong `SKILL.md`.
+
+---
+
+## Năm rule luôn bật
+
+| Rule | Chặn cái gì |
+|---|---|
+| `fe-implementation.md` | Định nghĩa one-line theo hành vi; thứ tự search trước khi viết hàm mới |
+| `reuse-duplication.md` | Cùng statements viết hai lần; bug fix thêm holder thứ hai cho giá trị đã có |
+| `modules.md` | Hai job trong một file; folder theo loại file thay vì theo feature |
+| `conflict-fix.md` | Resolve conflict bằng hai block dán cạnh nhau, hoặc mất một phía |
+| `review-diff.md` | Tác giả chấm diff của chính mình |
+
+## Hai host khác nhau ở đâu
+
+| Khả năng | Claude Code | omp |
+|---|---|---|
+| Rule theo prompt | Hook `UserPromptSubmit` inject | Rule always-on; badge `⚡ rules` báo prompt khớp |
+| Chặn edit | Hook `PreToolUse` | `extensions/fe-gate.ts` trên `tool_call` |
+| Kiểm sau khi ghi | Hook `PostToolUse`, exit 2 | Cùng extension, lỗi nằm trong tool result |
+| Sau compact | `SessionStart` + `PreCompact` nạp lại rule | Không cần, rule vẫn bật |
+| Verdict hiển thị | Không | Status line: `✓ ok`, `✎ note`, `⛔ blocked`, `⚡ rules` |
+
+Cả hai dùng chung `scripts/fe-gate.sh` → `scripts/fe-gate.py`. Một chỗ sửa, hai host cùng đổi.
+
+---
 
 ## Cài
 
@@ -86,8 +210,8 @@ Architecture Ownership → Reuse-first → Performance Check → Code Quality �
 /plugin install fe-kit@fe-kit
 ```
 
-`/plugin install` mở panel chọn scope — chưa chọn thì chưa cài.
-Từ shell: `claude plugin marketplace add nhathoagn/plugin-architecture && claude plugin install fe-kit@fe-kit`
+`/plugin install` mở panel chọn scope — chưa chọn thì chưa cài. Từ shell:
+`claude plugin marketplace add nhathoagn/plugin-architecture && claude plugin install fe-kit@fe-kit`
 
 **omp**
 
@@ -96,29 +220,50 @@ omp plugin marketplace add nhathoagn/plugin-architecture
 omp plugin install fe-kit@fe-kit
 ```
 
-Cần `sh` và `python3` (Windows: Git Bash). Thiếu `python3` thì hook im lặng, plugin vẫn load.
+Trong TUI: `/marketplace add …` rồi `/marketplace install fe-kit@fe-kit`.
 
-## Dùng
+**Bản đang sửa trên đĩa**
 
-```text
-/fe-kit:fe-kit        # Claude Code
-/skill:fe-kit         # omp
+```bash
+claude --plugin-dir .
+omp plugin link .
 ```
 
-Rồi mô tả việc như bình thường. Hai việc hay dùng nhất:
+## Yêu cầu
 
-- **Review trước commit** — diff đi qua reviewer mới, không phải bản agent vừa viết.
-- **So ảnh với code** — đưa mockup, nhận danh sách lệch kèm `file:line`.
+- `sh` POSIX và `python3`. Windows cần Git Bash.
+- Thiếu `python3` thì hook im lặng, plugin vẫn load — gate không chạy.
+- `ut-report` cần `pyyaml` và `openpyxl`.
 
-Trên omp, status line hiện verdict gần nhất: `✓ ok`, `✎ note`, `⛔ blocked`,
-`⚡ rules` (prompt khớp intent). Một edit bị chặn còn hiện ở đó sau khi tool result cuộn qua.
+## Sự cố thường gặp
 
-## Nó không làm gì
+| Hiện tượng | Cách sửa |
+|---|---|
+| Edit bị chặn hoài dù đã có plan | Nhãn nằm trong thinking. Ghi nó trong reply, đúng hai dòng |
+| Không thấy rule được inject | `/plugin install` chưa chọn scope → cài lại |
+| omp không chặn edit | Extension chưa load → kiểm `omp.extensions` trong `package.json` |
+| Sửa xong báo còn conflict marker | Xoá `<<<<<<<`, `=======`, `>>>>>>>` rồi sửa lại |
 
-- Không sinh code mẫu, không tạo scaffolding, không commit hộ.
-- Không sửa code trong hai skill kiểm tra (`ui-image-check`, `ut-report`).
-- Không đi qua issue tracker, không viết glossary hay ADR hộ bạn.
-- Gate lỗi, quá 10 giây, hoặc không in gì thì **fail open** — không chặn oan vì lỗi hạ tầng.
+## Cấu trúc
+
+```text
+.claude-plugin/          manifest + marketplace
+hooks/hooks.json         hook cho Claude Code
+scripts/fe-gate.sh|py    gate dùng chung hai host
+extensions/fe-gate.ts    adapter omp + test
+skills/fe-kit/           SKILL.md, 6 playbook, references, evals
+skills/ui-image-check/   so ảnh với code
+skills/ut-report/        báo cáo UT + build_report.py
+rules/                   5 rule always-on
+agents/reviewer.md       reviewer đọc diff
+```
+
+Test — 96 case cho gate, 14 case cho extension omp, tất cả pass:
+
+```bash
+python3 scripts/test_fe_gate.py
+node --test extensions/fe-gate.test.ts
+```
 
 ## Đọc tiếp
 
