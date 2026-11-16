@@ -228,6 +228,18 @@ Màn có tình huống tương ứng thì phải có case. Màn không có tình
 7. **Nhánh hệ cũ phân biệt dạng dữ liệu** (vd. `length() == 2` để biết ô đang chứa mã hay nhãn). Đọc DB thật để
    biết những dạng giá trị nào có tồn tại (mã 2 ký tự, rỗng, NULL). Mỗi dạng có một case, kèm điều kiện liên quan
    (vd. 履歴 = 0 hoặc > 0). Dạng không tồn tại trong DB → ghi `NA`, Note ghi câu truy vấn và số dòng.
+8. **Giá trị mới do bản fix tạo ra.** Một bản fix có thể làm một ô nhận giá trị mà trước đó ô không bao giờ có:
+   rỗng, `0`, `NULL`, mặc định bị bỏ, hoặc mặc định được thêm. Luồng khác có thể dựa vào giá trị cũ và bị lỗi.
+   Với mỗi bug đã sửa của màn:
+   - Đọc diff của bản fix. Ghi tên ô nhận giá trị mới và giá trị mới đó.
+   - Tìm mọi chỗ ghi và đọc ô đó trong hệ mới (`setValue`, `getValues`, `useWatch`, payload khi lưu).
+     Tìm mọi event của hệ cũ đọc hoặc điền ô đó, không chỉ event của bug.
+   - Mỗi luồng tìm được có một case: đưa ô về giá trị mới, chạy luồng đó, rồi so với hệ cũ.
+     Cột Trường hợp ghi số bug gốc, ô, giá trị mới, và luồng.
+   - Ví dụ (CA3020): bản fix bug 19462 / 19441 làm 消費税率 (thuế suất) rỗng khi chọn một 製番 có thuế NULL. Phải có case: chọn 製番 đó →
+     nhập 納入先 / 需要家 / 送り先 → 消費税率 được điền lại như hệ cũ (10, hoặc 0 khi 得意先 miễn thuế).
+     Thiếu case này nên lỗi thứ hai lọt ra cùng bản fix.
+   - Bản fix không làm ô nào nhận giá trị mới → bỏ mục này cho bug đó, không cần dòng `NA`.
 
 Mỗi bug tester đã báo cho màn này cũng là một case: ghi số bug trong Note, Kết quả `NG -> OK` sau khi đã chạy lại.
 

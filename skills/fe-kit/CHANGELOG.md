@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.18.0
+
+A bug fix left a field blank where it used to hold a default. Another flow filled that field only when it was blank, and the new code had no such fill. The fix re-ran only its own reproduction, so the second bug shipped with it.
+
+- `playbooks/fix-bug.md` adds step 6, "Check the impact of the fix". When a fix gives a field a new value (a blank, `0`, `null`, a removed or an added default), name the field and the value. Search every writer and reader of the field, and for a rewrite every old-system event that reads or fills it. Write an `Impact:` list with one line for each flow. A fix that gives no field a new value says so in one line.
+- The unit-test step is now step 7, and Verify is step 8. Verify also runs each `Impact:` flow, and a flow that was not run is named with its reason. Step 3 points `tdd` at step 7.
+- `skills/ut-report/SKILL.md` adds required case 8, "Giá trị mới do bản fix tạo ra": for each fixed bug, each flow that writes or reads the field with the new value gets a case.
+
 ## 1.17.1
 
 A prompt that named fe-kit got no rule injection and no badge, because the intent regex only knew frontend words and the "review diff" phrasing.
