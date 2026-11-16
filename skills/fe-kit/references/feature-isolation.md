@@ -21,7 +21,7 @@ Three guarantees, all three, not one of them:
 - A bug fix that restores the documented behavior. Never gate a correctness, security, or data-loss fix behind a default-off flag.
 - A pure refactor, rename, move, or style tweak with no behavior change. The before/after comparison in `references/code-quality.md` is the guard there, not a flag.
 - A brand-new standalone screen with no existing caller and no old path to preserve. There is nothing to toggle against. Still keep it separated (guarantee 3).
-- A one-line fix. It is out of scope for this skill at all.
+- A behaviorless wording or style change. It is out of scope for this skill at all.
 
 If unsure whether behavior changes, it changes. Apply this file.
 

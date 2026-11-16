@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.19.0
+
+The wording exemption was line based, so it blocked pure copy on a JSX text line and let behavior changes through after an apostrophe, an import path, or a string constant.
+
+- New `scripts/wording.py`: a stdlib JS/TS/JSX lexer and token diff. An edit is exempt only when every changed token is JSX text, a whitelisted text attribute, a copy call/property/constant, a class/style sink, or a comment. An import source, endpoint, enum value, route, storage key, config constant, condition, or call is code and stays gated. Multi-line copy and `MultiEdit` are exempt; `Write` and a path-only `ast_edit` stay gated.
+- `scripts/fe-gate.py` deletes `behaviorless_one_line()`, `code_skeleton()`, `string_tail_skeleton()`, `class_list_line()`, `RISKY_RE`, `JSX_TEXT_RE`, `OPEN_STRING_RE`, and the other line regexes. `wording_exempt()` reads the file, applies the edit in memory, and calls the token diff. `FE_GATE_WORDING=off` is a kill switch. Conflict resolution keeps `conflict_lines_only()` and a token-subset merge check.
+- The gate now covers `.js`, `.mjs`, `.cjs`, `.astro`, and `.mdx` in addition to `.tsx`, `.jsx`, `.vue`, and `.svelte`. Phase 1 gates `.vue`, `.svelte`, `.astro`, and `.mdx` without a wording exemption. `.ts` stays out.
+- `Decision:` must carry the decision word immediately after the colon. `Decision: do not reuse` and `Decision: no shared` no longer count. `Runtime owner:` rejects `TBD`, `TODO`, `N/A`, `-`, and similar placeholders. A table row is skipped before both checks.
+- Request scope: any user message that is not a continuation (`ok`, `làm đi`, `tiếp tục`, an interrupt) starts a new task, so labels for an earlier task cannot open a later one.
+- Bug mode: a wording prompt (`text`, `copy`, `label`, `chính tả`) or a meta prompt (`fe-kit`, `plugin`) no longer asks for repro fields unless a strong symptom is present. The same wording words stop the reuse bundle from loading on `sửa text` and `sửa copy`.
+- `extensions/fe-gate.ts` accepts the edit key names omp and other hosts use: `old_string`/`new_string`, `oldText`/`newText`, `oldString`/`newString`, `old_str`/`new_str`, `old`/`new`, and `search`/`replace`. An `edits` array maps to `MultiEdit`; `ast_edit` uses the same pairs instead of always mapping to a path-only `MultiEdit`; `write` forwards `content`. The gate timeout rises from 10 s to 15 s to cover the token diff on a large file.
+- Tests: `scripts/test_wording.py` runs 78 lexer/diff cases. `scripts/test_fe_gate.py` runs 124 cases and takes about 4 s with `FE_GATE_NO_FLUSH=1`. `extensions/fe-gate.test.ts` runs 25 cases. The black-box repro suite covers 22 cases, including the old false allows.
+
 ## 1.18.0
 
 A bug fix left a field blank where it used to hold a default. Another flow filled that field only when it was blank, and the new code had no such fill. The fix re-ran only its own reproduction, so the second bug shipped with it.

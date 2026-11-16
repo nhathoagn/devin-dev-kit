@@ -11,16 +11,19 @@ plugin-architecture
 │   └── hooks.json           5 event (UserPromptSubmit, PreToolUse, PostToolUse, SessionStart, PreCompact) → chạy fe-gate.sh
 ├── scripts/
 │   ├── fe-gate.sh           tìm python3, chuyển stdin JSON sang fe-gate.py; thiếu python3 thì bỏ qua (fail open)
-│   ├── fe-gate.py           lõi gate (~590 dòng): đọc transcript, chốt allow/deny, bơm rule theo intent
-│   │   ├── gate_open()      :369  owner + reuse decision có đủ? bug edit thì có nhãn repro?
-│   │   ├── conflict_edit()  :346  edit có conflict marker? → qua gate ngay
-│   │   ├── run_repo_rules() :506  gọi <repo>/.claude/rules.sh nếu có, fail → exit 2
-│   │   ├── deny path :394    in JSON permissionDecision=deny + exit 0 (PostToolUse mới dùng exit 2)
-│   │   └── emit()           :527  in JSON additionalContext trả cho hook
-│   └── test_fe_gate.py      94 test cho hành vi fe-gate.py
+│   ├── fe-gate.py           lõi gate: đọc transcript, chốt allow/deny, bơm rule theo intent
+│   │   ├── wording_exempt() :369  Edit/MultiEdit đi qua khi token diff chỉ đổi copy/style/comment
+│   │   ├── gate_open()      :405  owner + reuse decision có đủ? bug edit thì có nhãn repro?
+│   │   ├── conflict_edit()  :313  edit có conflict marker? → qua gate ngay
+│   │   ├── run_repo_rules() :544  gọi <repo>/.claude/rules.sh nếu có, fail → exit 2
+│   │   ├── deny path :435    in JSON permissionDecision=deny + exit 0 (PostToolUse mới dùng exit 2)
+│   │   └── emit()           :565  in JSON additionalContext trả cho hook
+│   ├── wording.py           lexer JS/TS/JSX + token diff: JSX text, text attr, copy call/property, style, comment = wording
+│   ├── test_wording.py      78 test lexer/token diff
+│   └── test_fe_gate.py      124 test cho hành vi fe-gate.py
 ├── extensions/
-│   ├── fe-gate.ts           omp extension (khai báo `omp.extensions` trong package.json): chặn edit thiếu nhãn qua tool_call, kiểm conflict/rules.sh sau ghi qua tool_result — gọi cùng scripts/fe-gate.sh; ghi verdict cuối (ok/blocked/note/rules) lên status line
-│   └── fe-gate.test.ts      14 case `node --test`, spawn gate thật
+│   ├── fe-gate.ts           omp extension (khai báo `omp.extensions` trong package.json): map edit/ast_edit/write sang payload gate (nhận old_string, oldText, oldString, old_str, old, search; edits[]), chặn edit thiếu nhãn qua tool_call, kiểm conflict/rules.sh sau ghi qua tool_result — gọi cùng scripts/fe-gate.sh; ghi verdict cuối (ok/blocked/note/rules) lên status line
+│   └── fe-gate.test.ts      25 case `node --test`, spawn gate thật
 ├── rules/                   nội dung bơm vào prompt (hook nạp, không phải agent tự đọc)
 │   ├── fe-implementation.md quy trình edit: quyết định trước, code sau
 │   ├── reuse-duplication.md tái sử dụng implementation có sẵn, cấm viết trùng
@@ -58,19 +61,19 @@ Trên omp: `hooks/hooks.json` không chạy. `extensions/fe-gate.ts` bắt event
 
 ## Intent → rule nào được nạp (fe-gate.py)
 
-Cờ regex ở `:27-67`, khớp prompt tiếng Việt lẫn tiếng Anh:
+Cờ regex ở đầu file, khớp prompt tiếng Việt lẫn tiếng Anh:
 
 | Cờ | Dòng | Kích hoạt khi prompt có |
 |---|---|---|
-| `prompt_hit` | :27 | frontend, react, vue, tsx, component, UI, giao diện |
-| `conflict_hit` | :34 | conflict, xung đột, hợp nhất, trùng |
-| `reuse_hit` | :42 | reuse, duplicat, dùng lại, tái sử, trùng lặp |
-| `author_hit` | :49 | add, implement, viết, thêm, tách, sửa |
-| `bug_hit` | :54 | bug, lỗi, sai khi, màn hình trắng, broken |
-| `wording_hit` | :64 | typo, chính tả, đổi màu (để BỎ QUA rule reuse) |
-| `review_hit` | :67 | review diff, trước commit, git diff |
+| `prompt_hit` | :35 | frontend, react, vue, tsx, component, UI, giao diện |
+| `conflict_hit` | :40 | conflict, xung đột, hợp nhất, trùng |
+| `reuse_hit` | :45 | reuse, duplicat, dùng lại, tái sử, trùng lặp |
+| `author_hit` | :50 | add, implement, viết, thêm, tách, sửa |
+| `bug_hit` | :90 | `bug_signal()`: bug, lỗi, sai khi, màn hình trắng, broken — trừ wording/meta |
+| `wording_hit` | :59 | typo, chính tả, đổi màu, text, copy, label (bỏ rule reuse và bug mode) |
+| `review_hit` | :91 | review diff, trước commit, git diff |
 
-Ma trận nạp ở `:573-588`:
+Ma trận nạp ở `:611`:
 
 | Event | Điều kiện | Nạp |
 |---|---|---|
@@ -128,8 +131,9 @@ Báo cáo: Verdict đứng đầu, mỗi miss là 1 câu, xong rồi dừng.
 ## Verify — chạy gì để chắc map đúng
 
 ```text
-python3 scripts/test_fe_gate.py          96 test hành vi gate (deny/allow, intent, conflict)
-node --test extensions/fe-gate.test.ts   14 test extension omp: verdict, prompt, chặn edit
+python3 scripts/test_wording.py          78 test lexer/token diff (copy vs code)
+python3 scripts/test_fe_gate.py          124 test hành vi gate (deny/allow, intent, conflict, file type)
+node --test extensions/fe-gate.test.ts   20 test extension omp: verdict, prompt, chặn edit, wording
 cat skills/fe-kit/evals/triggers.json    16 query mẫu: should_trigger true/false — kiểm intent regex
 sh scripts/fe-gate.sh < event.json        chạy thật 1 event với payload giả
 claude --debug -p "review the diff"      rồi grep "Loading hooks from plugin: fe-kit" ~/.claude/debug/latest
@@ -152,7 +156,10 @@ claude --debug -p "review the diff"      rồi grep "Loading hooks from plugin: 
 | prompt `review diff trước commit` | inject `review_context` (rule + playbook path) |
 | prompt `xung đột merge` | inject `conflict-fix.md` |
 | decision nằm ở transcript subagent (`agent_id`) | allow nhờ nhánh `subagent_transcript()` |
-| wording-only edit, transcript rỗng | allow — bypass `behaviorless_one_line()`, không cần nhãn |
+| wording-only edit, transcript rỗng | allow — token diff `scripts/wording.py`, không cần nhãn |
+| edit `fetch('/api/v1')` → `v2`, transcript rỗng | deny — string code, không phải copy |
+| edit `.js` wording / `.js` behavior | allow / deny — `.js` đã vào gate |
+| edit `.vue/.svelte/.astro/.mdx` wording | deny — phase 1 chưa có exemption |
 
 2 lần FAIL trong lần chạy đầu là lỗi harness (fixture sai đường `splitext(main)[0]` → `session/main/subagents/`, và pattern check yêu cầu `permissionDecision` ở case allow) — chạy lại đều pass.
 

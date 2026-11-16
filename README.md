@@ -1,6 +1,6 @@
 # fe-kit
 
-![version](https://img.shields.io/badge/version-1.18.0-blue)
+![version](https://img.shields.io/badge/version-1.19.0-blue)
 ![hosts](https://img.shields.io/badge/hosts-Claude%20Code%20%7C%20omp-6e56cf)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -128,7 +128,7 @@ kèm `Theo code (chưa chạy)`. Sinh file bằng `skills/ut-report/scripts/buil
 
 | Rule | Chặn cái gì |
 |---|---|
-| `fe-implementation.md` | Định nghĩa one-line theo hành vi; thứ tự search trước khi viết hàm mới |
+| `fe-implementation.md` | Định nghĩa wording/style theo hành vi; thứ tự search trước khi viết hàm mới |
 | `reuse-duplication.md` | Cùng statements viết hai lần; bug fix thêm holder thứ hai cho giá trị đã có |
 | `modules.md` | Hai job trong một file; folder theo loại file thay vì theo feature |
 | `conflict-fix.md` | Resolve conflict bằng hai block dán cạnh nhau, hoặc mất một phía |
@@ -188,6 +188,7 @@ omp plugin link .
 .claude-plugin/          manifest + marketplace
 hooks/hooks.json         hook cho Claude Code
 scripts/fe-gate.sh|py    gate dùng chung hai host
+scripts/wording.py       lexer JS/TS/JSX + token diff cho wording/style
 extensions/fe-gate.ts    adapter omp + test
 skills/fe-kit/           SKILL.md, 6 playbook, references, evals
 skills/ui-image-check/   so ảnh với code

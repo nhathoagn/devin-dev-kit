@@ -1,7 +1,8 @@
 """Tests for scripts/fe-gate.py. Run: python scripts/test_fe_gate.py (exit code = number of failures).
 
-Each case writes a small transcript, sends one hook payload to the gate as UTF-8 bytes, and checks
-the decision: allow, deny, or deny+bug (deny that also asks for Trigger:, Expected:, Actual:).
+Each case writes a small transcript and a source file, sends one hook payload to the gate as UTF-8
+bytes, and checks the decision: allow, deny, or deny+bug (deny that also asks for Trigger:, Expected:,
+Actual:). `FE_GATE_NO_FLUSH=1` keeps the deny path fast; the late-write case removes it.
 """
 import json
 import os
@@ -13,7 +14,7 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 GATE = os.path.join(HERE, "fe-gate.py")
-ENV = dict(os.environ, FE_ARCH_ROOT=os.path.dirname(HERE))
+ENV = dict(os.environ, FE_ARCH_ROOT=os.path.dirname(HERE), FE_GATE_NO_FLUSH="1")
 TMP = tempfile.mkdtemp(prefix="fe-gate-test-")
 
 def U(text, **extra):
@@ -36,9 +37,9 @@ def write_transcript(name, entries):
             handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
     return path
 
-def call_gate(payload):
+def call_gate(payload, env=None):
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    result = subprocess.run([sys.executable, "-I", GATE], input=data, capture_output=True, env=ENV)
+    result = subprocess.run([sys.executable, "-I", GATE], input=data, capture_output=True, env=env or ENV)
     return result.stdout.decode("utf-8")
 
 def decision(output):
@@ -46,9 +47,20 @@ def decision(output):
         return "allow"
     return "deny+bug" if "Trigger:" in output else "deny"
 
-def pre_tool(entries, tool=None, extra=None):
+def pre_tool(entries, tool=None, extra=None, source=None):
     transcript = write_transcript("main.jsonl", entries)
     name, tool_input = tool or ("Write", {"file_path": "src/B.tsx", "content": "x"})
+    if name in ("Edit", "MultiEdit") and isinstance(tool_input.get("file_path"), str):
+        target = os.path.join(TMP, tool_input["file_path"])
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        if source is None:
+            if name == "Edit":
+                source = tool_input.get("old_string", "")
+            else:
+                edits = tool_input.get("edits") or []
+                source = "\n".join(edit.get("old_string", "") for edit in edits if isinstance(edit, dict))
+        with open(target, "w", encoding="utf-8") as handle:
+            handle.write(source)
     payload = {"hook_event_name": "PreToolUse", "tool_name": name, "tool_input": tool_input,
                "transcript_path": transcript, "cwd": TMP}
     payload.update(extra or {})
@@ -147,14 +159,14 @@ CASES = [
     ("one line: import list", [U("sửa")], E("import { RotateCcw, Ban } from 'lucide-react';", "import { RotateCcw, Ban, ChevronRight } from 'lucide-react';", "src/B.tsx"), "allow"),
     ("one line: class string opens here", [U("sửa")], E('        className="inline-flex h-8 shrink-0 items-center', '        className="inline-flex h-5 shrink-0 items-center', "src/B.tsx"), "allow"),
     ("one line: class string closes here", [U("sửa")], E('        px-3 text-sm font-semibold text-primary">', '        px-3 text-sm font-medium text-brand-strong">', "src/B.tsx"), "allow"),
-    ("one line: open JSX comment", [U("sửa")], E("  {/* The search buttons wait for the lock", "  {/* A search waits for the lock session, so its read shows. */}", "src/B.tsx"), "allow"),
+    ("one line: open JSX comment", [U("sửa")], E("  {/* The search buttons wait for the lock */}", "  {/* A search waits for the lock session, so its read shows. */}", "src/B.tsx"), "allow"),
     ("one line: comment end", [U("sửa")], E("   A file is a download link. */", "   A file is a ダウンロード link. */", "src/B.tsx"), "allow"),
     ("one line: export list", [U("sửa")], E("export { Alert, AlertTitle };", "export { Alert, AlertTitle, alertVariants };", "src/B.tsx"), "allow"),
     ("one line: first line of an import list", [U("sửa")], E("import { useCallback, useMemo,", "import { useCallback, useEffect, useMemo,", "src/B.tsx"), "allow"),
     ("one line: import with module on the next line", [U("sửa")], E("import { codeName, LOCKED_CLASS } from", "import { codeName } from", "src/B.tsx"), "allow"),
     ("one line: class string in cn()", [U("sửa")], E("    month: cn('flex flex-col w-full gap-4', defaultClassNames.month),", "    month: cn('flex flex-col w-full gap-2', defaultClassNames.month),", "src/B.tsx"), "allow"),
     ("one line: object key with a class string", [U("sửa")], E("    sm: 'h-8 rounded-md gap-1.5 px-3',", "    sm: 'h-7 rounded-md gap-1.5 px-3',", "src/B.tsx"), "allow"),
-    ("one line: class string end with a hex color", [U("sửa")], E("      rounded-[8px] border px-4 bg-[#FFFFFF33]',", "      rounded-[8px] border px-3 has-[>svg]:px-3 bg-[#FFFFFF33]',", "src/B.tsx"), "allow"),
+    ("one line: class string end with a hex color", [U("sửa")], E("bg-[#FFFFFF33]',", "bg-[#FFFFFF34]',", "src/B.tsx"), "allow"),
     ("one line: object flag is not a class list", [U("sửa")], E("    open: true,", "    open: false,", "src/B.tsx"), "deny"),
     ("one line: object number is not a class list", [U("sửa")], E("    max-rows: 10,", "    max-rows: 20,", "src/B.tsx"), "deny"),
     ("one line: key with a class string value change", [U("sửa")], E("    month: 'gap-4',", "    month: 'gap-2',", "src/B.tsx"), "allow"),
@@ -183,23 +195,74 @@ CASES = [
     ("conflict via MultiEdit", [U("fix conflict")], ("MultiEdit", {"file_path": "src/B.tsx", "edits": [{"old_string": M2, "new_string": "  <A x={2} />"}]}), "deny"),
     ("conflict via Write", [U("fix conflict")], ("Write", {"file_path": "src/B.tsx", "content": "x"}), "deny"),
     ("non-conflict edit after 'lỗi'", [U(STASH_USER), A(T(OK))], E("  a\n  b", "  a\n  c", "src/B.tsx"), "deny+bug"),
+    # Wording across file types and multi-line edits.
+    ("wording: jsx text own line", [U("đổi text")], E("  <p>\n    Bạn có chắc?\n  </p>", "  <p>\n    Bạn chắc chứ?\n  </p>", "src/B.tsx"), "allow"),
+    ("wording: multi-line paragraph", [U("đổi text")], E("  <p>\n    Dòng một\n    Dòng hai\n  </p>", "  <p>\n    Dòng một mới\n    Dòng hai mới\n  </p>", "src/B.tsx"), "allow"),
+    ("wording: MultiEdit", [U("đổi text")], ("MultiEdit", {"file_path": "src/B.tsx", "edits": [
+        {"old_string": "  <p>Save</p>", "new_string": "  <p>Store</p>"},
+        {"old_string": "  <B label=\"A\" />", "new_string": "  <B label=\"B\" />"},
+    ]}), "allow"),
+    ("wording: comment mentions useState", [U("đổi text")], E("// reset useState here\nconst x = 1;", "// reset the useState hook here\nconst x = 1;", "src/B.tsx"), "allow"),
+    ("wording: multi-line template", [U("đổi text")], E("const label = `Dòng một\nDòng hai`;", "const label = `Dòng một mới\nDòng hai mới`;", "src/B.tsx"), "allow"),
+    ("wording: .js label", [U("đổi text")], E("const label = 'Save';", "const label = 'Store';", "src/B.js"), "allow"),
+    ("wording: .jsx label", [U("đổi text")], E("const label = 'Save';", "const label = 'Store';", "src/B.jsx"), "allow"),
+    ("behavior: .js fetch url", [U("đổi text")], E("fetch('/api/v1');", "fetch('/api/v2');", "src/B.js"), "deny"),
+    ("behavior: .mjs export value", [U("đổi text")], E("export const API_URL = '/v1';", "export const API_URL = '/v2';", "src/B.mjs"), "deny"),
+    ("behavior: .cjs key", [U("đổi text")], E("const key = 'token';", "const key = 'auth';", "src/B.cjs"), "deny"),
+    ("behavior: .mdx is gated", [U("đổi text")], E("const label = 'Save';", "const label = 'Store';", "src/B.mdx"), "deny"),
+    ("behavior: .astro is gated", [U("đổi text")], E("const label = 'Save';", "const label = 'Store';", "src/B.astro"), "deny"),
+    ("behavior: import source path", [U("sửa import")], E("import { A } from './a';", "import { A } from './b';", "src/B.tsx"), "deny"),
+    ("behavior: enum value", [U("sửa status")], E("const status = 'ACTIVE';", "const status = 'INACTIVE';", "src/B.tsx"), "deny"),
+    ("behavior: apostrophe then handler", [U("sửa text")], E("const x = <p>Don't <B /> save</p>;", "const x = <p>Don't <B onClick={save} /> save</p>;", "src/B.tsx"), "deny"),
+
+    # Decisions and scope.
+    ("Decision: do not reuse", chat("add field", T("Runtime owner: OrderForm\nDecision: do not reuse, write new")), E("  <B limit={10} />", "  <B limit={20} />", "src/B.tsx"), "deny"),
+    ("Decision: no shared", chat("add field", T("Runtime owner: OrderForm\nDecision: no shared")), E("  <B limit={10} />", "  <B limit={20} />", "src/B.tsx"), "deny"),
+    ("Owner: TBD", chat("add field", T("Runtime owner: TBD\nDecision: reuse")), E("  <B limit={10} />", "  <B limit={20} />", "src/B.tsx"), "deny"),
+    ("stale labels, new task", [U("thêm cột A"), A(T(OK)), U("đổi limit bảng 10 thành 20")], E("  <B limit={10} />", "  <B limit={20} />", "src/B.tsx"), "deny"),
+    ("wording prompt with lỗi is not bug mode", [U("sửa lỗi chính tả trong B"), A(T("Runtime owner: OrderForm\nDecision: reuse"))], E("  <B limit={10} />", "  <B limit={20} />", "src/B.tsx"), "allow"),
+    ("text prompt with lỗi is not bug mode", [U("Text nút X bị lỗi hiển thị, đổi thành Y"), A(T("Runtime owner: OrderForm\nDecision: reuse"))], E("  <B limit={10} />", "  <B limit={20} />", "src/B.tsx"), "allow"),
+    ("plugin bug prompt is not bug mode", [U("plugin fe-kit bị lỗi"), A(T("Runtime owner: OrderForm\nDecision: reuse"))], E("  <B limit={10} />", "  <B limit={20} />", "src/B.tsx"), "allow"),
+    ("ast_edit path-only is gated", [U("add field")], ("MultiEdit", {"file_path": "src/B.tsx"}), "deny"),
+    ("Write path-only is gated", [U("add field")], ("Write", {"file_path": "src/B.tsx"}), "deny"),
+
     # File types.
     (".ts file is not gated", [U("add field")], ("Edit", {"file_path": "src/b.ts", "old_string": "a\nb", "new_string": "c\nd"}), "allow"),
     (".vue file is gated", [U("add field")], ("Edit", {"file_path": "src/B.vue", "old_string": "a\nb", "new_string": "c\nd"}), "deny"),
 ]
 
+SOURCE = {
+    "one line: class list inside a multi-line string":
+        'const x = <B\n  className="inline-flex\n        h-14.5 min-h-14.5\n  text-sm"\n/>;\n',
+    "one line: class list with arbitrary values":
+        'const x = <B\n  className="flex\n  [&>svg]:translate-y-0 [&>img]:translate-y-0"\n/>;\n',
+    "one line: class string opens here":
+        'const x = <B\n        className="inline-flex h-8 shrink-0 items-center\n        px-3 text-sm"\n/>;\n',
+    "one line: class string closes here":
+        'const x = <B\n        className="inline-flex\n        px-3 text-sm font-semibold text-primary">\n</B>;\n',
+    "one line: comment end":
+        "/**\n   A file is a download link. */\nconst x = 1;\n",
+    "one line: import with module on the next line":
+        "import { codeName, LOCKED_CLASS } from\n  './module';\nconst x = 1;\n",
+    "one line: class string end with a hex color":
+        "const x = { month: 'flex bg-[#FFFFFF33]', };\n",
+}
+
 def run_cases():
     failures = 0
     for name, entries, tool, want in CASES:
-        got = pre_tool(entries, tool)
+        got = pre_tool(entries, tool, source=SOURCE.get(name))
         failures += got != want
         print(("OK  " if got == want else "FAIL"), "%-8s %s" % (want, name) + ("" if got == want else "  (got %s)" % got))
     return failures
+
+SPECIAL_TOTAL = [0]
 
 def run_special():
     failures = 0
     def check(name, got, want):
         nonlocal failures
+        SPECIAL_TOTAL[0] += 1
         failures += got != want
         print(("OK  " if got == want else "FAIL"), "%-8s %s" % (want, name) + ("" if got == want else "  (got %s)" % got))
 
@@ -219,7 +282,8 @@ def run_special():
             handle.write(json.dumps(A(T(OK))) + "\n")
     thread = threading.Thread(target=append_later)
     thread.start()
-    check("labels written 0.5 s late", decision(call_gate(dict(base, transcript_path=late))), "allow")
+    slow_env = {key: value for key, value in ENV.items() if key != "FE_GATE_NO_FLUSH"}
+    check("labels written 0.5 s late", decision(call_gate(dict(base, transcript_path=late), env=slow_env)), "allow")
     thread.join()
 
     # The deny message names the missing line, so the agent does not retry the same edit.
@@ -230,15 +294,24 @@ def run_special():
     # UserPromptSubmit reads a Vietnamese prompt as UTF-8.
     def injects(prompt):
         out = call_gate({"hook_event_name": "UserPromptSubmit", "prompt": prompt, "cwd": TMP})
-        return "allow" if "One-line is defined" in out else "deny"
+        return "allow" if "behaviorless by what it changes" in out else "deny"
     check("vi prompt 'đang lỗi màn hình trắng' injects rules (allow = injected)", injects("đang lỗi màn hình trắng"), "allow")
     check("vi prompt 'đổi màu nút' injects no impl rule (deny = none)", injects("đổi màu nút"), "deny")
     check("prompt naming fe-kit injects rules", injects("sử dung fe-kit để review repo"), "allow")
     check("prompt naming skill://fe-kit injects rules", injects("read skill://fe-kit first"), "allow")
+
+    # A wording prompt must not drag in the reuse/modules bundle.
+    def reuse_injected(prompt):
+        out = call_gate({"hook_event_name": "UserPromptSubmit", "prompt": prompt, "cwd": TMP})
+        return "allow" if "Duplicated code means" in out else "deny"
+    check("sửa text injects no reuse bundle", reuse_injected("sửa text nút Lưu"), "deny")
+    check("sửa copy injects no reuse bundle", reuse_injected("sửa copy màn chi tiết"), "deny")
+    check("đổi text injects nothing", reuse_injected("đổi text nút Lưu"), "deny")
+    check("sửa lỗi chính tả injects no bug rules", injects("sửa lỗi chính tả"), "deny")
     return failures
 
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8")
     total = run_cases() + run_special()
-    print("cases: %d, failures: %d" % (len(CASES) + 8, total))
+    print("cases: %d, failures: %d" % (len(CASES) + SPECIAL_TOTAL[0], total))
     sys.exit(total)

@@ -5,6 +5,8 @@ import path from "node:path";
 import { after, test } from "node:test";
 import feGate from "./fe-gate.ts";
 
+process.env.FE_GATE_NO_FLUSH = "1";
+
 type Handler = (event: unknown, ctx: unknown) => unknown;
 
 interface Denial {
@@ -114,12 +116,134 @@ test("ignores nested tool calls", async () => {
   assert.equal(result, undefined);
 });
 
-test("keeps the behaviorless one-line wording bypass", async () => {
+test("keeps the wording bypass for a real file", async () => {
+  const buttonPath = path.join(root, "src/Button.tsx");
+  fs.mkdirSync(path.dirname(buttonPath), { recursive: true });
+  fs.writeFileSync(buttonPath, 'const label = "Submit";\n');
   const result = await handlerFor("tool_call")(
-    editEvent("src/Button.tsx", 'const label = "Submit";', 'const label = "Send";'),
+    editEvent(buttonPath, 'const label = "Submit";', 'const label = "Send";'),
     makeCtx([]),
   );
   assert.equal(result, undefined);
+});
+
+test("keeps the wording bypass in a .js file", async () => {
+  const filePath = path.join(root, "src/Label.js");
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, "const label = 'Save';\n");
+  const result = await handlerFor("tool_call")(editEvent(filePath, "const label = 'Save';", "const label = 'Store';"), makeCtx([]));
+  assert.equal(result, undefined);
+});
+
+test("keeps the wording bypass when the host names the sides oldText/newText", async () => {
+  const filePath = path.join(root, "src/Alt.tsx");
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, 'const label = "Submit";\n');
+  const event = {
+    type: "tool_call",
+    toolName: "edit",
+    input: { path: filePath, oldText: 'const label = "Submit";', newText: 'const label = "Send";' },
+  };
+  const result = await handlerFor("tool_call")(event, makeCtx([]));
+  assert.equal(result, undefined);
+});
+
+test("keeps the wording bypass for an edits array", async () => {
+  const filePath = path.join(root, "src/Multi.tsx");
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, 'const label = "Submit";\nconst title = "Save";\n');
+  const event = {
+    type: "tool_call",
+    toolName: "edit",
+    input: {
+      path: filePath,
+      edits: [
+        { old_string: 'const label = "Submit";', new_string: 'const label = "Send";' },
+        { old_string: 'const title = "Save";', new_string: 'const title = "Store";' },
+      ],
+    },
+  };
+  const result = await handlerFor("tool_call")(event, makeCtx([]));
+  assert.equal(result, undefined);
+});
+
+test("keeps the wording bypass for ast_edit with old and new strings", async () => {
+  const filePath = path.join(root, "src/Ast.tsx");
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, 'const label = "Submit";\n');
+  const event = {
+    type: "tool_call",
+    toolName: "ast_edit",
+    input: { path: filePath, old_string: 'const label = "Submit";', new_string: 'const label = "Send";' },
+  };
+  const result = await handlerFor("tool_call")(event, makeCtx([]));
+  assert.equal(result, undefined);
+});
+
+test("keeps the wording bypass for ast_edit with an edits array", async () => {
+  const filePath = path.join(root, "src/AstMulti.tsx");
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, 'const label = "Submit";\nconst title = "Save";\n');
+  const event = {
+    type: "tool_call",
+    toolName: "ast_edit",
+    input: {
+      path: filePath,
+      edits: [
+        { old_string: 'const label = "Submit";', new_string: 'const label = "Send";' },
+        { old_string: 'const title = "Save";', new_string: 'const title = "Store";' },
+      ],
+    },
+  };
+  const result = await handlerFor("tool_call")(event, makeCtx([]));
+  assert.equal(result, undefined);
+});
+
+test("keeps the wording bypass for search/replace", async () => {
+  const filePath = path.join(root, "src/Search.tsx");
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, 'const label = "Submit";\n');
+  const event = {
+    type: "tool_call",
+    toolName: "edit",
+    input: { path: filePath, search: 'const label = "Submit";', replace: 'const label = "Send";' },
+  };
+  const result = await handlerFor("tool_call")(event, makeCtx([]));
+  assert.equal(result, undefined);
+});
+
+test("blocks a behavior change in a .js file", async () => {
+  const filePath = path.join(root, "src/Api.js");
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, "fetch('/api/v1');\n");
+  const result = await handlerFor("tool_call")(editEvent(filePath, "fetch('/api/v1');", "fetch('/api/v2');"), makeCtx([]));
+  const denial = readDenial(result);
+  assert.ok(denial, `expected a denial, got ${JSON.stringify(result)}`);
+});
+
+test("passes a .ts edit because the gate does not cover it", async () => {
+  const result = await handlerFor("tool_call")(editEvent("src/Util.ts", ...codeChange), makeCtx([]));
+  assert.equal(result, undefined);
+});
+
+test("blocks a write because there is no old source to compare", async () => {
+  const event = { type: "tool_call", toolName: "write", input: { path: "src/New.tsx", content: "const a = 1;\n" } };
+  const result = await handlerFor("tool_call")(event, makeCtx([]));
+  const denial = readDenial(result);
+  assert.ok(denial, `expected a denial, got ${JSON.stringify(result)}`);
+});
+
+test("blocks an ast_edit with no old and new strings", async () => {
+  const event = { type: "tool_call", toolName: "ast_edit", input: { path: "src/New.tsx" } };
+  const result = await handlerFor("tool_call")(event, makeCtx([]));
+  const denial = readDenial(result);
+  assert.ok(denial, `expected a denial, got ${JSON.stringify(result)}`);
+});
+
+test("blocks a .vue edit because its dialect has no wording exemption", async () => {
+  const result = await handlerFor("tool_call")(editEvent("src/View.vue", ...codeChange), makeCtx([]));
+  const denial = readDenial(result);
+  assert.ok(denial, `expected a denial, got ${JSON.stringify(result)}`);
 });
 
 test("reports conflict markers left in the written file", async () => {

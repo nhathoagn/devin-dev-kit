@@ -15,7 +15,7 @@
     {
       "id": 2,
       "prompt": "Fix the typo in the Submit button label.",
-      "expected_output": "The skill is not invoked. The change is a one-line copy fix.",
+      "expected_output": "The skill is not invoked. The change is a behaviorless copy fix.",
       "expectations": [
         "The skill is not loaded.",
         "No architecture template is produced."
@@ -211,9 +211,9 @@
     {
       "id": 19,
       "prompt": "One-line fix: change the checkout total line to `const total = subtotal - (discount ?? 0)` so a missing discount stops breaking the screen.",
-      "expected_output": "Not a one-line exemption. The change alters runtime behavior, so playbooks/fix-bug.md applies: reproduce, find why discount is missing at its owner, and fix that instead of adding a default that hides it.",
+      "expected_output": "Not a wording exemption. The change alters runtime behavior, so playbooks/fix-bug.md applies: reproduce, find why discount is missing at its owner, and fix that instead of adding a default that hides it.",
       "expectations": [
-        "The output does not treat the change as a one-line fix, and names the behavior it alters.",
+        "The output does not treat the change as wording, and names the behavior it alters.",
         "The output asks why discount is absent instead of accepting the `?? 0` default.",
         "The fix is at the owner of the discount value, with a regression check."
       ]

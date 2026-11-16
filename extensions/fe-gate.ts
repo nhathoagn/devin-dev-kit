@@ -41,7 +41,7 @@ interface GatePayload {
   hook_event_name: "PreToolUse" | "PostToolUse" | "UserPromptSubmit";
   prompt?: string;
   tool_name?: string;
-  tool_input: Record<string, string>;
+  tool_input: Record<string, unknown>;
   cwd: string;
   transcript_path: string;
 }
@@ -59,7 +59,7 @@ interface GateHookOutput {
 }
 
 const GATE_SCRIPT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "scripts", "fe-gate.sh");
-const GATE_TIMEOUT_MS = 10_000;
+const GATE_TIMEOUT_MS = 15_000;
 
 // The badge mirrors the last verdict of this session, so a blocked edit stays
 // visible after the tool result scrolls away.
@@ -145,7 +145,7 @@ function postPayload(filePath: string, cwd: string, transcriptPath: string): Gat
 
 function prePayload(
   claudeName: string,
-  toolInput: Record<string, string>,
+  toolInput: Record<string, unknown>,
   cwd: string,
   transcriptPath: string,
 ): GatePayload {
@@ -158,37 +158,74 @@ function prePayload(
   };
 }
 
+const OLD_NEW_KEYS = [
+  ["old_string", "new_string"],
+  ["oldText", "newText"],
+  ["oldString", "newString"],
+  ["old_str", "new_str"],
+  ["old", "new"],
+  ["search", "replace"],
+] as const;
+
+function editPair(input: unknown): { old: string; new: string } | undefined {
+  // omp and other hosts name the two sides differently; one pair is enough for the gate.
+  if (typeof input !== "object" || input === null) return undefined;
+  const record = input as Record<string, unknown>;
+  for (const [oldKey, newKey] of OLD_NEW_KEYS) {
+    const oldValue = record[oldKey];
+    const newValue = record[newKey];
+    if (typeof oldValue === "string" && typeof newValue === "string") {
+      return { old: oldValue, new: newValue };
+    }
+  }
+  return undefined;
+}
+
+function editList(input: unknown): { old_string: string; new_string: string }[] | undefined {
+  if (typeof input !== "object" || input === null) return undefined;
+  const record = input as Record<string, unknown>;
+  if (!Array.isArray(record.edits)) return undefined;
+  const edits: { old_string: string; new_string: string }[] = [];
+  for (const raw of record.edits) {
+    const pair = editPair(raw);
+    if (pair) edits.push({ old_string: pair.old, new_string: pair.new });
+  }
+  return edits.length > 0 ? edits : undefined;
+}
+
 function toPayload(event: GateEvent, ctx: GateCtx, transcriptPath: string): GatePayload[] {
   const cwd = typeof ctx.cwd === "string" ? ctx.cwd : "";
   const pre = event.type === "tool_call";
   const paths = filePaths(event.input);
 
-  if (event.toolName === "edit") {
+  if (event.toolName === "edit" || event.toolName === "ast_edit") {
     const filePath = paths[0];
     if (filePath === undefined) return [];
     if (!pre) return [postPayload(filePath, cwd, transcriptPath)];
-    const input: unknown = event.input;
-    if (
-      typeof input === "object" && input !== null
-      && "old_string" in input && typeof input.old_string === "string"
-      && "new_string" in input && typeof input.new_string === "string"
-    ) {
+    const pair = editPair(event.input);
+    if (pair) {
       return [
         prePayload(
           "Edit",
-          { file_path: filePath, old_string: input.old_string, new_string: input.new_string },
+          { file_path: filePath, old_string: pair.old, new_string: pair.new },
           cwd,
           transcriptPath,
         ),
       ];
     }
+    const edits = editList(event.input);
+    if (edits) {
+      return [prePayload("MultiEdit", { file_path: filePath, edits }, cwd, transcriptPath)];
+    }
     return [prePayload("MultiEdit", { file_path: filePath }, cwd, transcriptPath)];
   }
 
-  if (event.toolName === "write" || event.toolName === "ast_edit") {
-    const claudeName = event.toolName === "write" ? "Write" : "MultiEdit";
+  if (event.toolName === "write") {
+    const input: unknown = event.input;
+    const content = typeof input === "object" && input !== null && "content" in input
+      && typeof input.content === "string" ? input.content : undefined;
     return paths.map((filePath): GatePayload => (pre
-      ? prePayload(claudeName, { file_path: filePath }, cwd, transcriptPath)
+      ? prePayload("Write", content === undefined ? { file_path: filePath } : { file_path: filePath, content }, cwd, transcriptPath)
       : postPayload(filePath, cwd, transcriptPath)));
   }
 

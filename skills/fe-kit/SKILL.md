@@ -1,6 +1,6 @@
 ---
 name: fe-kit
-description: "Architecture-first ownership, reuse-first authoring, React performance checks, a senior audit (reuse, architecture, operational flow, error handling, load, extension), and flagged, separated feature isolation for new behavior added to existing UI, before or during frontend work. Use before implementing or refactoring non-trivial UI, components, hooks, forms, data fetching, or feature state. Use when fixing a frontend bug or a symptom report with wrong behavior, even without the word fix. Use when reviewing a frontend diff before commit. Also use for Vietnamese requests such as implement UI, refactor component, viết frontend, viết component, sửa lỗi, tổng sai, màn hình trắng, review màn, review diff trước commit, or audit kiến trúc. Do not use for a one-line fix, a pure styling tweak, or non-frontend work."
+description: "Architecture-first ownership, reuse-first authoring, React performance checks, a senior audit (reuse, architecture, operational flow, error handling, load, extension), and flagged, separated feature isolation for new behavior added to existing UI, before or during frontend work. Use before implementing or refactoring non-trivial UI, components, hooks, forms, data fetching, or feature state. Use when fixing a frontend bug or a symptom report with wrong behavior, even without the word fix. Use when reviewing a frontend diff before commit. Also use for Vietnamese requests such as implement UI, refactor component, viết frontend, viết component, sửa lỗi, tổng sai, màn hình trắng, review màn, review diff trước commit, or audit kiến trúc. Do not use for a behaviorless wording or style change, or non-frontend work."
 ---
 
 # FE Architecture, Reuse, Performance
@@ -24,7 +24,7 @@ If you wrote the diff, do not open `playbooks/review-diff.md`. Hand the diff to 
 
 The playbook names the reference files. Do not read a reference it does not name.
 
-Skip every playbook for a one-line fix, a pure style tweak, or work that is not frontend. Say why. One-line is defined by behavior in `rules/fe-implementation.md`: any change that alters runtime behavior is not one-line, however few lines it touches.
+Skip every playbook for a behaviorless wording or style change, or work that is not frontend. Say why. Behavioral definition and copy/style sinks are in `rules/fe-implementation.md` and `scripts/wording.py`: a change that alters runtime behavior is never exempt, however few lines it touches.
 
 ## Fields
 
@@ -170,7 +170,7 @@ Files in scope:
 - A different job goes in a new file, per `rules/modules.md`. Do not grow a file that already has one job.
 - A review's only user-facing output is the Vietnamese report in `playbooks/review-ui.md`, or the diff report in `playbooks/review-diff.md` when a fresh reviewer writes it. Kết luận is first for a screen review. The diff report's Verdict is first for a diff. Then stop. Do not fill the template below. Do not re-read the tree to rewrite the report.
 - Do not write implementation code until the Architecture and Reuse Decision sections are filled. Fill them in the reply text, not only in thinking, because thinking is not always saved for the edit hook. A review records the reuse decision under Dùng lại, and a wrong owner under Việc nên làm, instead of those sections.
-- Do not grade a frontend diff you wrote. Hand it to `fe-kit:reviewer` or a fresh context that reads `playbooks/review-diff.md`. A one-line fix or a pure style tweak skips this.
+- Do not grade a frontend diff you wrote. Hand it to `fe-kit:reviewer` or a fresh context that reads `playbooks/review-diff.md`. A behaviorless wording or style change skips this.
 - Never invent a new shared component or hook just because it might be useful later.
 - Never bypass a project wrapper to use the lower-level primitive it owns.
 - Never place code in a layer that does not own the responsibility.

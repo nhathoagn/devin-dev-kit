@@ -4,6 +4,12 @@ import re
 import sys
 import subprocess
 
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+try:
+    import wording
+except Exception:
+    wording = None
+
 # The hook payload is UTF-8. Windows Python decodes stdin as cp1252 by default, which breaks Vietnamese prompts.
 raw = sys.stdin.buffer.read().decode("utf-8", errors="replace").strip()
 if not raw:
@@ -50,12 +56,38 @@ BUG_RE = re.compile(
     r"\bbug\b|lỗi|sai khi|(?:tổng|tong|tính|tinh|hiển thị|hien thi|bị|bi) sai\b|không (?:đúng|hiển thị|hien thi|trừ|tru|chạy|chay|mở|mo)\b|màn hình trắng|man hinh trang|mất dữ liệu|mat du lieu|does not work|not working|\bbroken\b|wrong (?:total|value|result|behavior|behaviour)",
     re.I,
 )
-bug_hit = BUG_RE.search(prompt)
-wording_hit = re.search(
-    r"\btypo\b|wording|chính tả|chinh ta|button label|style tweak|from blue to|đổi màu|doi mau",
-    prompt,
+WORDING_RE = re.compile(
+    r"\btypo\b|wording|chính tả|chinh ta|button label|style tweak|from blue to|đổi màu|doi mau|"
+    r"\btext\b|\bcopy\b|\blabel\b|câu chữ|noi dung|nội dung",
     re.I,
 )
+# A strong bug signal is a symptom, not just the word "lỗi". Wording tasks often mention "lỗi".
+BUG_STRONG_RE = re.compile(
+    r"\bbug\b|sai khi|(?:tổng|tong|tính|tinh|hiển thị|hien thi|bị|bi) sai\b|"
+    r"không (?:đúng|hiển thị|hien thi|trừ|tru|chạy|chay|mở|mo)\b|"
+    r"màn hình trắng|man hinh trang|mất dữ liệu|mat du lieu|"
+    r"does not work|not working|\bbroken\b|wrong (?:total|value|result|behavior|behaviour)",
+    re.I,
+)
+META_RE = re.compile(
+    r"fe-gate|fe gate|fe-kit|fe kit|skill://fe-kit|\bplugin\b|\blexer\b|\btokenizer\b|"
+    r"wording_hit|path_hit",
+    re.I,
+)
+
+def bug_signal(text):
+    if not text or not BUG_RE.search(text):
+        return False
+    if BUG_STRONG_RE.search(text):
+        return True
+    if WORDING_RE.search(text):
+        return False
+    if META_RE.search(text):
+        return False
+    return True
+
+wording_hit = WORDING_RE.search(prompt)
+bug_hit = bug_signal(prompt)
 review_hit = re.search(
     r"review(?: the)? diff|git diff|trước commit|truoc commit|before commit|code review|soi diff",
     prompt,
@@ -63,7 +95,7 @@ review_hit = re.search(
 )
 path_hit = re.search(r"\.(tsx|jsx|vue|svelte)$", path, re.I)
 source_hit = re.search(
-    r"\.(tsx?|jsx?|vue|svelte|py|go|rs|java|kt|kts|rb|php|cs|swift)$",
+    r"\.(tsx?|jsx?|mjs|cjs|vue|svelte|py|go|rs|java|kt|kts|rb|php|cs|swift)$",
     path,
     re.I,
 )
@@ -77,7 +109,7 @@ def transcript_lines(path):
     with handle:
         return handle.readlines()
 
-DENY_REASON = "Fill Runtime owner and a Reuse Decision (reuse, extend, feature-local, shared, or n/a with a reason) from skill fe-kit before editing this file. Write each one in the reply text, on its own line, after the latest request and before the edit call: `Runtime owner:` and a name, `Decision:` and one decision. Thinking is not always saved, so write the lines in the reply text. A table row does not count. Only a behaviorless one-line wording or style change is exempt."
+DENY_REASON = "Fill Runtime owner and a Reuse Decision (reuse, extend, feature-local, shared, or n/a with a reason) from skill fe-kit before editing this file. Write each one in the reply text, on its own line, after the latest request and before the edit call: `Runtime owner:` and a name, `Decision:` and one decision. Thinking is not always saved, so write the lines in the reply text. A table row does not count. Only a behaviorless wording or style change is exempt."
 DENY_BUG_REASON = "A bug fix also needs Trigger:, Expected:, and Actual:, each with a value, from playbooks/fix-bug.md."
 REMINDER_RE = re.compile(r"<system-reminder>.*?</system-reminder>", re.S)
 # A Japanese IME types the full-width colon.
@@ -89,9 +121,12 @@ VALUE = r"(?:[ \t]+`?[^\s,`]|[^\s,`])"
 REPRODUCE_LABELS = {"Trigger": "Trigger|Steps?", "Expected": "Expected", "Actual": "Actual"}
 # A person can end a line with the label and put the value on the next line.
 NEXT_LINE_VALUE = r"[ \t]*\n\s*(?!`|\||(?:Trigger|Steps?|Expected|Actual)\b)\S"
-# A request for new work ends an earlier bug report. A short reply such as "do it" does not.
-NEW_WORK_RE = re.compile(
-    r"\b(add|implement|write|create|extract|refactor|introduce)\b|viết|viet |thêm |them |tách |tach ",
+# A short reply continues the current task. Anything else starts a new task, so old labels do not count.
+CONTINUATION_RE = re.compile(
+    r"^\s*(?:ok(?:ay)?|oke|yes|yeah|yep|sure|go on|go ahead|continue|proceed|do it|"
+    r"thanks|lgtm|ừ|uh|vâng|dạ|được|đồng ý|làm đi|chạy đi|tiếp tục|tiếp|"
+    r"(?:ok(?:ay)?|oke|ừ|vâng|dạ|được)\s*[,.!]*\s*(?:làm đi|chạy đi|tiếp tục|tiếp)"
+    r")\s*[.!…]*\s*$",
     re.I,
 )
 
@@ -138,31 +173,30 @@ def authored_entries(path, roles):
 def authored_texts(path, roles):
     return [text for _, text in authored_entries(path, roles)]
 
-def is_request(text):
-    # A request for new work or a bug report starts a new task. "ok", "làm đi", and an interrupt do not.
+def is_continuation(text):
+    # "ok", "làm đi", "tiếp tục", and an interrupt continue the current task. Everything else starts one.
     if text.lstrip().startswith("[Request interrupted"):
-        return False
-    return bool(BUG_RE.search(text) or NEW_WORK_RE.search(text))
+        return True
+    return bool(CONTINUATION_RE.match(text))
 
 def request_scope(path):
-    # Labels count from the latest request on, so labels for an earlier task do not open a later one.
+    # Labels count from the latest task on, so labels for an earlier task do not open a later one.
     entries = authored_entries(path, ("user", "assistant"))
     for index in range(len(entries) - 1, -1, -1):
         role, text = entries[index]
-        if role == "user" and is_request(text):
+        if role == "user" and not is_continuation(text):
             return entries[index:]
     return entries
 
-def user_is_bug(path):
-    # The latest request decides, so an old bug report does not gate later work.
+def latest_user_text(path):
     for role, text in reversed(authored_entries(path, ("user",))):
-        if role != "user" or text.lstrip().startswith("[Request interrupted"):
-            continue
-        if BUG_RE.search(text):
-            return True
-        if NEW_WORK_RE.search(text):
-            return False
-    return False
+        if role == "user" and not is_continuation(text):
+            return text
+    return ""
+
+def user_is_bug(path):
+    # The latest task decides, so an old bug report does not gate later work.
+    return bug_signal(latest_user_text(path))
 
 def has_label_value(labels, text, next_line):
     if re.search("(?:" + labels + ")" + LABEL_END + VALUE, text, re.I):
@@ -206,6 +240,25 @@ REUSE_HEADING_RE = re.compile(r"^\s*(?:#{1,6}\s*|[*_]{2})?\s*Reuse Decision\b", 
 HEADING_RE = re.compile(r"^\s*#{1,6}\s")
 # Under a Reuse Decision heading, any label can carry the decision, as in "- FE side: **reuse**".
 SECTION_DECISION_RE = re.compile(r"[:：]\s*[*_`]*\s*" + DECISION_WORD, re.I)
+OWNER_LINE_RE = re.compile(r"Runtime owner[*_]*[:：][ \t]*[*_`]*[ \t]*([^\s,`]+)", re.I)
+OWNER_PLACEHOLDER_RE = re.compile(
+    r"^(?:tbd|tba|todo|to-do|none|null|nil|unknown|n/a|na|pending|placeholder|x+|\.+|\?+|-+)$",
+    re.I,
+)
+# The decision word must follow the colon, so "Decision: do not reuse" is not a reuse decision.
+DECISION_LINE_RE = re.compile(r"Decision[*_]*[:：][ \t]*[*_`]*[ \t]*" + DECISION_WORD, re.I)
+
+def clean_label_value(value):
+    return value.strip("*_` \t.,;:")
+
+def owner_value(line):
+    match = OWNER_LINE_RE.search(line)
+    if not match:
+        return ""
+    value = clean_label_value(match.group(1))
+    if OWNER_PLACEHOLDER_RE.match(value):
+        return ""
+    return value
 
 def decisions_found():
     # Returns (owner found, decision found) for the current request.
@@ -221,11 +274,11 @@ def decisions_found():
                 in_reuse_section = True
             elif HEADING_RE.match(line):
                 in_reuse_section = False
-            if re.search("Runtime owner" + LABEL_END + VALUE, line, re.I):
-                found_owner = True
             if "|" in line:
                 continue
-            if re.search("Decision" + LABEL_END + r"(?!`)[^\n]*?" + DECISION_WORD, line, re.I):
+            if owner_value(line):
+                found_owner = True
+            if DECISION_LINE_RE.search(line):
                 found_reuse = True
             elif in_reuse_section and SECTION_DECISION_RE.search(line):
                 found_reuse = True
@@ -257,92 +310,6 @@ def missing_note(bug_edit):
 
 CONFLICT_MARKER_RE = re.compile(r"^(?:<{7}|={7}|>{7}|\|{7})(?:\s|$)", re.M)
 
-def behaviorless_one_line():
-    if tool_name != "Edit" or not isinstance(tool_input, dict):
-        return False
-    old = tool_input.get("old_string") or ""
-    new = tool_input.get("new_string") or ""
-    if not old or not new or old == new:
-        return False
-    if len(new.splitlines()) != 1 or CONFLICT_MARKER_RE.search(new):
-        return False
-    # A conflict resolution can replace the marker block with one line. It counts as one line.
-    if len(old.splitlines()) != 1 and not CONFLICT_MARKER_RE.search(old):
-        return False
-    if CONFLICT_MARKER_RE.search(old):
-        # A merged line is behaviorless when every word and risky token in it comes from the conflict block.
-        old_code = "\n".join(line for line in old.splitlines() if not CONFLICT_MARKER_RE.match(line))
-        return (
-            set(WORD_RE.findall(new)) <= set(WORD_RE.findall(old_code))
-            and set(RISKY_RE.findall(new)) <= set(RISKY_RE.findall(old_code))
-        )
-    if RISKY_RE.search(new) and not RISKY_RE.search(old):
-        return False
-    # An import line alone changes no behavior. The edit that uses the name is gated on its own.
-    if IMPORT_RE.match(old) and IMPORT_RE.match(new):
-        return True
-    # A line inside a multi-line class string has no quotes, so check it as a class list.
-    if class_list_line(old) and class_list_line(new):
-        return True
-    old_tail, new_tail = string_tail_skeleton(old), string_tail_skeleton(new)
-    if old_tail is not None or new_tail is not None:
-        # The quote closes a class string, so only the code after it decides.
-        return old_tail == new_tail
-    # Wording and style live in strings, JSX text, and comments. Any other change is code: a call, a handler, or a value.
-    return code_skeleton(new) == code_skeleton(old)
-
-RISKY_RE = re.compile(r"useState|useEffect|useMemo|useCallback|\?\?|\|\||&&|\bif\s*\(|\bcatch\b|=>|\bawait\b|\bfetch\b")
-WORD_RE = re.compile(r"[\w$]+")
-STRING_RE = re.compile(r"'(?:\\.|[^'\\])*'|\"(?:\\.|[^\"\\])*\"|`(?:\\.|[^`\\])*`")
-JSX_TEXT_RE = re.compile(r">[^<>{}]*<")
-
-# An import or export list, also the first line of one that spans lines, as in import { a, b, or } from.
-IMPORT_RE = re.compile(r"\s*import\s[^;]*\sfrom(?:\s+['\"][^'\"]+['\"])?;?\s*$|\s*(?:import|export)\s+(?:type\s+)?\{[^}]*\}?;?\s*$")
-COMMENT_RE = re.compile(r"\{\s*/\*.*?\*/\s*\}|/\*.*?\*/|\{\s*/\*.*$|/\*.*$|^\s*\*.*$|(?<![:\w])//.*$")
-# The end of a comment that began on an earlier line, as in "link. */" or "link. */}".
-COMMENT_TAIL_RE = re.compile(r"^[^/]*?\*/\s*\}?")
-# A quote left open after the closed strings are removed starts a string that ends on a later line.
-OPEN_STRING_RE = re.compile(r"[\"'`].*$")
-# The first or last line of a multi-line class string carries its quote, as in h-14" or `px-3.
-# Upper case appears in arbitrary values such as bg-[#FFFFFF33].
-CLASS_TOKEN_RE = re.compile(r"[!\-\"'`]?[A-Za-z0-9\[\]()&>:._/%#+*,=~@-]+[\"'`]?,?$")
-JS_WORD_RE = re.compile(r"\b(?:return|const|let|var|if|else|await|import|export|function|new|throw|typeof)\b")
-
-def class_list_line(line):
-    tokens = line.split()
-    if not tokens or JS_WORD_RE.search(line) or ";" in line:
-        return False
-    # A class list token has a dash, colon, bracket, slash, or dot, as in h-14.5 or md:w-59. Plain words do not prove it.
-    if not any(re.search(r"[-:\[/.]", token) for token in tokens):
-        return False
-    # A bare operator such as - or + is arithmetic, not a class.
-    if not all(CLASS_TOKEN_RE.match(token) and re.search(r"[A-Za-z0-9]", token) for token in tokens):
-        return False
-    # An object key (open:) or a literal value (true, 12) is code. A class variant always has a utility after the colon.
-    return not any(
-        re.search(r"[:：]$", token) or re.fullmatch(r"(?:true|false|null|undefined|-?\d+(?:\.\d+)?),?", token)
-        for token in tokens
-    )
-
-def code_skeleton(line):
-    line = COMMENT_TAIL_RE.sub("", line)
-    line = COMMENT_RE.sub("", line)
-    # The placeholder has no quote, so OPEN_STRING_RE sees only a quote that is really left open.
-    line = STRING_RE.sub("STR", line)
-    line = OPEN_STRING_RE.sub("STR", line)
-    line = JSX_TEXT_RE.sub("><", line)
-    return re.sub(r"\s+", "", line)
-
-def string_tail_skeleton(line):
-    # A line that starts inside a class string that began on an earlier line, as in px-3 text-primary">.
-    match = re.match(r"([^\"'`]*)([\"'`])(.*)$", line)
-    if not match or not class_list_line(match.group(1)):
-        return None
-    # An even count of that quote means the line opens and closes its own strings, as in variant: 'primary'.
-    if line.count(match.group(2)) % 2 == 0:
-        return None
-    return "tail:" + code_skeleton(match.group(3))
-
 def conflict_edit():
     if tool_name != "Edit" or not isinstance(tool_input, dict):
         return False
@@ -359,11 +326,80 @@ def conflict_lines_only():
     old_lines = {line.strip() for line in old.splitlines() if not CONFLICT_MARKER_RE.match(line)}
     return all(line.strip() in old_lines for line in new.splitlines() if line.strip())
 
+TOKEN_RE = re.compile(r"[\w$]+|[^\s\w]")
+
+def conflict_merge_only():
+    # A one-line merge that only combines tokens already present in the conflict block writes no new code.
+    if not conflict_edit():
+        return False
+    old = tool_input.get("old_string") or ""
+    new = tool_input.get("new_string") or ""
+    if len(new.splitlines()) != 1 or CONFLICT_MARKER_RE.search(new):
+        return False
+    old_lines = "\n".join(line for line in old.splitlines() if not CONFLICT_MARKER_RE.match(line))
+    old_tokens = set(TOKEN_RE.findall(old_lines))
+    new_tokens = set(TOKEN_RE.findall(new))
+    return bool(new_tokens) and new_tokens <= old_tokens
+
+GATED_EXT_RE = re.compile(r"\.(tsx|jsx|js|mjs|cjs|vue|svelte|astro|mdx)$", re.I)
+
+def edit_pairs():
+    # Edit has one pair. MultiEdit has one pair per edit. A path-only payload has none and stays gated.
+    if tool_name == "Edit":
+        old = tool_input.get("old_string")
+        new = tool_input.get("new_string")
+        if isinstance(old, str) and isinstance(new, str):
+            return [(old, new)]
+        return []
+    if tool_name == "MultiEdit":
+        edits = tool_input.get("edits")
+        if not isinstance(edits, list):
+            return []
+        pairs = []
+        for edit in edits:
+            if not isinstance(edit, dict):
+                continue
+            old = edit.get("old_string")
+            new = edit.get("new_string")
+            if isinstance(old, str) and isinstance(new, str):
+                pairs.append((old, new))
+        return pairs
+    return []
+
+def wording_exempt():
+    # Fail closed: a missing lexer, an unreadable file, or an unknown extension is gated.
+    if wording is None or os.environ.get("FE_GATE_WORDING") == "off":
+        return False
+    if tool_name not in ("Edit", "MultiEdit") or conflict_edit():
+        return False
+    pairs = [(old, new) for old, new in edit_pairs() if old and old != new]
+    if not pairs:
+        return False
+    for old, new in pairs:
+        if CONFLICT_MARKER_RE.search(old) or CONFLICT_MARKER_RE.search(new):
+            return False
+    if not full_path or not os.path.isfile(full_path):
+        return False
+    if not wording.dialect_for(full_path):
+        return False
+    try:
+        if os.path.getsize(full_path) > wording.MAX_SOURCE_BYTES:
+            return False
+        with open(full_path, encoding="utf-8", errors="strict") as handle:
+            source = handle.read()
+    except (OSError, UnicodeDecodeError):
+        return False
+    try:
+        return wording.edits_are_wording(source, pairs, wording.dialect_for(full_path))
+    except Exception:
+        return False
+
 gated_view = (
     tool_name in ("Write", "Edit", "MultiEdit")
-    and re.search(r"\.(tsx|jsx|vue|svelte)$", path, re.I)
-    and not behaviorless_one_line()
+    and GATED_EXT_RE.search(path)
+    and not wording_exempt()
     and not conflict_lines_only()
+    and not conflict_merge_only()
 )
 
 def gate_open(bug_edit):
@@ -373,6 +409,8 @@ def gate_open_after_flush(bug_edit):
     # Claude Code can write the reply text of the current turn after this hook reads the transcript.
     # Read again for a short time before a deny, so lines written just before the edit call count.
     import time
+    if os.environ.get("FE_GATE_NO_FLUSH") == "1":
+        return gate_open(bug_edit)
     if gate_open(bug_edit):
         return True
     for _ in range(FLUSH_RETRIES):

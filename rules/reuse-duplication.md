@@ -3,7 +3,7 @@ description: Reuse an existing implementation. Do not write the same code twice.
 alwaysApply: true
 ---
 
-If the task adds or changes a function, component, hook, type, constant, validation, fetch, handler, state, prop, or variable, search before you write it. A one-line wording fix or a pure style tweak does not need this search, as defined in `rules/fe-implementation.md`. Any fix that changes behavior does, however few lines it touches.
+If the task adds or changes a function, component, hook, type, constant, validation, fetch, handler, state, prop, or variable, search before you write it. A behaviorless wording or style change does not need this search, as defined in `rules/fe-implementation.md`. Any fix that changes behavior does, however few lines it touches.
 
 Search by what the code does and by a literal it would own. A matching name is a lead. Open the candidate and one caller. Reuse it when the contract matches: who owns the data, what it validates, and what it returns. Extend it when the new behavior fits that responsibility. A small difference is an argument, not a new file. A different job is a new file, per `rules/modules.md`.
 
