@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.21.1
+
+The gate read every user entry as a new request, also the entries the host writes: a `<task-notification>` when a background task or a subagent ends, and `/export` with its `<local-command-stdout>`. Each one dropped the labels of the current request. In a DA1020 session the reviewer notification came in while the agent worked, and the edit after it was denied.
+
+- `scripts/fe-gate.py`: `typed_by_person()` skips a user entry whose `origin.kind` is not `human`, or whose text starts with `<task-notification>`, `<command-name>`, `<command-message>`, `<command-args>`, `<local-command-stdout>`, or `<local-command-stderr>`. Such an entry does not start a request, and labels inside it do not count. This also keeps an echo declaration of 1.21.0 valid after a notification.
+- Replay of that session: the transcript cut after the notification is denied at 1.21.0 and allowed now.
+- Tests: `scripts/test_fe_gate.py` runs 178 cases (6 new).
+
 ## 1.21.0
 
 In 105 gate denials across the JTEK sessions, 82 were repeats inside one request, and 68 of those had no new reply text before the retry. The agent wrote its labels in a thinking block, which the transcript keeps empty, or not at all. In 4 to 5 cases the labels were in the reply text but the transcript did not have them yet when the hook read it. The rules that the hook injects did not name the label format, so every request got at least one denial.

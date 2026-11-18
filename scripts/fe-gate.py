@@ -166,6 +166,17 @@ def entry_texts(entry):
             texts.append(block.get("thinking") or "")
     return texts
 
+# The host writes these as user entries, but no person typed them. They do not start a request.
+HOST_NOTICE_RE = re.compile(
+    r"^\s*<(?:task-notification|command-name|command-message|command-args|local-command-stdout|local-command-stderr)>"
+)
+
+def typed_by_person(entry):
+    origin = entry.get("origin")
+    if isinstance(origin, dict) and origin.get("kind") not in (None, "human"):
+        return False
+    return not any(HOST_NOTICE_RE.match(text) for text in entry_texts(entry))
+
 def authored_entries(path, roles):
     # Only text a person typed or Claude wrote, as (role, text) in transcript order.
     # Tool output, reminders, and hook notes are not authored.
@@ -177,6 +188,8 @@ def authored_entries(path, roles):
             entries.append(("", line))
             continue
         if not isinstance(entry, dict) or entry.get("type") not in roles or entry.get("isMeta"):
+            continue
+        if entry.get("type") == "user" and not typed_by_person(entry):
             continue
         # A compact summary is a user entry that no person typed. Its text counts, but it is not a request.
         role = "summary" if entry.get("isCompactSummary") else entry.get("type")

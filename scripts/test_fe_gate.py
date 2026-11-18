@@ -417,6 +417,30 @@ def run_special():
     check("main agent edit does not see a subagent declaration", edit(own), "deny")
     check("subagent edit sees its own declaration", edit(own, agent_id="sub2"), "allow")
 
+    # A host notice is a user entry that no person typed, so it does not start a new request.
+    notice = "<task-notification>\n<task-id>a1</task-id>\n<status>completed</status>\n</task-notification>"
+    check("labels survive a task notification",
+          edit(write_transcript("notice-1.jsonl", [U("thêm cột"), A(T(OK)),
+                                                   U(notice, origin={"kind": "task-notification"})])), "allow")
+    check("labels survive a notice with no origin field",
+          edit(write_transcript("notice-2.jsonl", [U("thêm cột"), A(T(OK)), U(notice)])), "allow")
+    check("labels survive /export",
+          edit(write_transcript("notice-3.jsonl", [U("thêm cột"), A(T(OK)),
+                                                   U("<command-name>/export</command-name>\n<command-message>export</command-message>"),
+                                                   U("<local-command-stdout>Conversation copied to clipboard</local-command-stdout>")])), "allow")
+    check("labels inside a task notification do not count",
+          edit(write_transcript("notice-4.jsonl", [U("thêm cột"),
+                                                   U(notice.replace("</status>", "</status>\n" + OK),
+                                                     origin={"kind": "task-notification"})])), "deny")
+    check("a typed request after a notice still starts a new request",
+          edit(write_transcript("notice-5.jsonl", [U("thêm cột"), A(T(OK)), U(notice, origin={"kind": "task-notification"}),
+                                                   U("giờ sửa màn DA1021", origin={"kind": "human"})])), "deny")
+    noticed = write_transcript("notice-6.jsonl", [U("thêm cột vào DA1020")])
+    declare(noticed, 'echo "Runtime owner: Da1020Columns" "Decision: reuse"')
+    with open(noticed, "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(U(notice, origin={"kind": "task-notification"})) + "\n")
+    check("echo declaration survives a task notification", edit(noticed), "allow")
+
     # omp writes a new transcript file on every call, so the session id keys the declaration.
     first = write_transcript("omp-1.jsonl", [U("thêm cột vào DA1020")])
     second = write_transcript("omp-2.jsonl", [U("thêm cột vào DA1020")])

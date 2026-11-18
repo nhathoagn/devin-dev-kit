@@ -1,6 +1,6 @@
 # fe-kit
 
-![version](https://img.shields.io/badge/version-1.21.0-blue)
+![version](https://img.shields.io/badge/version-1.21.1-blue)
 ![hosts](https://img.shields.io/badge/hosts-Claude%20Code%20%7C%20omp-6e56cf)
 ![license](https://img.shields.io/badge/license-MIT-green)
 

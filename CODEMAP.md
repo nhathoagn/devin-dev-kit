@@ -22,7 +22,7 @@ plugin-architecture
 │   ├── bash_target.py       Bash command → file frontend nó ghi (redirect, tee, cp/mv, sed/perl -i, script writeFileSync/write_text, đọc cả file script, theo cd); thư mục tmp/temp/scratchpad được bỏ qua
 │   ├── wording.py           lexer JS/TS/JSX + token diff: JSX text, text attr, copy call/property, style, comment = wording
 │   ├── test_wording.py      78 test lexer/token diff
-│   └── test_fe_gate.py      172 test cho hành vi fe-gate.py
+│   └── test_fe_gate.py      178 test cho hành vi fe-gate.py
 ├── extensions/
 │   ├── fe-gate.ts           omp extension (khai báo `omp.extensions` trong package.json): map edit/ast_edit/write/bash sang payload gate (nhận old_string, oldText, oldString, old_str, old, search; edits[]), chặn edit thiếu nhãn qua tool_call, kiểm conflict/rules.sh sau ghi qua tool_result — gọi cùng scripts/fe-gate.sh; ghi verdict cuối (ok/blocked/note/rules) lên status line
 │   └── fe-gate.test.ts      29 case `node --test`, spawn gate thật (Windows: qua `sh`, đường dẫn dấu /)
@@ -134,7 +134,7 @@ Báo cáo: Verdict đứng đầu, mỗi miss là 1 câu, xong rồi dừng.
 
 ```text
 python3 scripts/test_wording.py          78 test lexer/token diff (copy vs code)
-python3 scripts/test_fe_gate.py          172 test hành vi gate (deny/allow, intent, conflict, file type, Bash ghi file, nhãn khai báo)
+python3 scripts/test_fe_gate.py          178 test hành vi gate (deny/allow, intent, conflict, file type, Bash ghi file, nhãn khai báo)
 node --test extensions/fe-gate.test.ts   29 test extension omp: verdict, prompt, chặn edit, wording
 cat skills/fe-kit/evals/triggers.json    16 query mẫu: should_trigger true/false — kiểm intent regex
 sh scripts/fe-gate.sh < event.json        chạy thật 1 event với payload giả
