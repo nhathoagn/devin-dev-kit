@@ -220,6 +220,15 @@ function toPayload(event: GateEvent, ctx: GateCtx, transcriptPath: string): Gate
     return [prePayload("MultiEdit", { file_path: filePath }, cwd, transcriptPath)];
   }
 
+  // A bash command can write a frontend file too. The gate finds the target in the command and exits at once
+  // when there is none. Only the call is gated; PostToolUse in hooks.json does not cover Bash either.
+  if (event.toolName === "bash") {
+    const input: unknown = event.input;
+    const command = typeof input === "object" && input !== null && "command" in input
+      && typeof input.command === "string" ? input.command : "";
+    return pre && command ? [prePayload("Bash", { command }, cwd, transcriptPath)] : [];
+  }
+
   if (event.toolName === "write") {
     const input: unknown = event.input;
     const content = typeof input === "object" && input !== null && "content" in input
@@ -279,7 +288,12 @@ function parseOutcome(payload: GatePayload, code: number | null, stdout: string,
 
 function runGate(payload: GatePayload): Promise<GateOutcome> {
   const { promise, resolve } = Promise.withResolvers<GateOutcome>();
-  const child = spawn(GATE_SCRIPT, { stdio: ["pipe", "pipe", "pipe"] });
+  // Windows cannot run a .sh file directly, so the spawn failed and the gate always passed. Run it through sh,
+  // with forward slashes: fe-gate.sh finds its folder with ${0%/*}, which does not split a backslash path.
+  const child =
+    process.platform === "win32"
+      ? spawn("sh", [GATE_SCRIPT.replaceAll("\\", "/")], { stdio: ["pipe", "pipe", "pipe"] })
+      : spawn(GATE_SCRIPT, { stdio: ["pipe", "pipe", "pipe"] });
   let settled = false;
   // Fail open: a gate that never answers must not block the session.
   const timer = setTimeout(() => {
@@ -329,7 +343,8 @@ async function withTranscript<T>(ctx: GateCtx, run: (transcriptPath: string) => 
 
 function skipEvent(event: GateEvent): boolean {
   if (event.parentToolCallId) return true;
-  return event.toolName !== "edit" && event.toolName !== "write" && event.toolName !== "ast_edit";
+  return event.toolName !== "edit" && event.toolName !== "write" && event.toolName !== "ast_edit"
+    && event.toolName !== "bash";
 }
 
 async function handleToolCall(
@@ -347,7 +362,8 @@ async function handleToolCall(
           return { block: true, reason: outcome.reason };
         }
       }
-      if (payloads.length > 0) showGateStatus(ctx, "ok");
+      // Most bash commands write no frontend file, so an allowed bash call leaves the verdict as it is.
+      if (payloads.length > 0 && event.toolName !== "bash") showGateStatus(ctx, "ok");
       return undefined;
     });
   } catch {

@@ -110,6 +110,27 @@ test("ignores tools outside the gate", async () => {
   assert.equal(result, undefined);
 });
 
+test("denies a bash command that writes a frontend file", async () => {
+  const event = { type: "tool_call", toolName: "bash", input: { command: "git show HEAD:src/X.tsx | sed 's/a//' > src/X.tsx" } };
+  const denial = readDenial(await handlerFor("tool_call")(event, makeCtx([])));
+  assert.ok(denial, "expected a denial for a redirect into a .tsx file");
+  assert.match(denial.reason, /Bash command that writes a frontend file/);
+});
+
+test("allows a bash command that writes a frontend file when the labels are there", async () => {
+  const entries = [
+    { type: "message", message: { role: "user", content: "drop the gutter" } },
+    { type: "message", message: { role: "assistant", content: [{ type: "text", text: "Runtime owner: Layout\nDecision: reuse" }] } },
+  ];
+  const event = { type: "tool_call", toolName: "bash", input: { command: "sed -i 's/a/b/' src/X.tsx" } };
+  assert.equal(await handlerFor("tool_call")(event, makeCtx(entries)), undefined);
+});
+
+test("leaves a bash tool result alone", async () => {
+  const event = { type: "tool_result", toolName: "bash", input: { command: "sed -i 's/a/b/' src/X.tsx" }, content: [] };
+  assert.equal(await handlerFor("tool_result")(event, makeCtx([])), undefined);
+});
+
 test("ignores nested tool calls", async () => {
   const event = { ...editEvent("src/X.tsx", ...codeChange), parentToolCallId: "x/1" };
   const result = await handlerFor("tool_call")(event, makeCtx([]));

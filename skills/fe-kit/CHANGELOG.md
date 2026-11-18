@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.20.0
+
+A new request ("đổi đi và liệt kê…") dropped the labels of the earlier request. The agent then named the owner only in prose and in a thinking summary, so the gate denied two Edit calls. The agent wrote the file with `git show … | sed … > file.tsx` instead, and Bash was not gated.
+
+- `hooks/hooks.json`: the PreToolUse matcher adds `Bash`.
+- New `scripts/bash_target.py`: `write_target()` finds a frontend file that a Bash command writes: a `>`/`>>` redirect, `tee`, `cp`/`mv` onto the file, `sed -i`/`perl -i`, or the path argument of `writeFileSync`, `writeFile(`, `appendFileSync`, `write_text(`, or `open(…, 'w')`. A script that reads `src/A.tsx` and writes `out.json` is not a target.
+  - A variable set in the same command is expanded, as in `F=src/A.tsx; echo x > "$F"`.
+  - A script file the command runs (`node "$S"`, `python x.py`) is read from disk and checked the same way.
+  - A write to a path built at run time (`writeFileSync(f, …)`, `sed -i … "$f"`) counts when the text names a frontend extension, as in `endsWith('.tsx')`.
+  - A relative path resolves against the last `cd` before it. A target under `tmp`, `temp`, or `scratchpad` stays open, so `cd "$SP"; sed -i … check.js` is not gated.
+- `scripts/fe-gate.py` gates that command like `Write` on the file. A Bash command that writes no frontend file exits at once and injects nothing.
+- The deny message now says that prose and a thinking summary do not count, that the label, a colon, and the value go on one line, and that labels written before the latest user message do not count. A Bash deny adds that Bash is gated like Edit.
+- `extensions/fe-gate.ts`: on Windows the extension spawned `fe-gate.sh` directly, which failed, so the gate always passed (9 of 25 tests failed on Windows). It now runs `sh` with a forward-slash path, because `fe-gate.sh` finds its folder with `${0%/*}`. The omp `bash` tool call is gated through the same `Bash` payload. An allowed bash call leaves the status line as it is.
+- Replay of a real 165-command session: 8 commands denied, each one a write to a repo frontend file. No scratchpad script was denied.
+- Tests: `scripts/test_fe_gate.py` runs 152 cases (28 new). `extensions/fe-gate.test.ts` runs 28 cases (3 new) and passes on Windows.
+
 ## 1.19.0
 
 The wording exemption was line based, so it blocked pure copy on a JSX text line and let behavior changes through after an apostrophe, an import path, or a string constant.

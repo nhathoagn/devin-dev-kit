@@ -128,6 +128,34 @@ CASES = [
     ("labels only in a tool result", [U("thêm cột"), {"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "content": OK}]}}], None, "deny"),
     ("labels only in a meta entry", [U("thêm cột"), U(OK, isMeta=True)], None, "deny"),
     ("labels only in a system-reminder", [U("thêm cột <system-reminder>" + OK + "</system-reminder>")], None, "deny"),
+    # Prose and a thinking summary name the owner, but carry no label.
+    ("prose owner and decision", chat("đổi đi", T("Tôi xác định chủ sở hữu là AuthenticatedLayout và quyết định tái sử dụng code cũ.")), None, "deny"),
+    ("thinking summary without labels", chat("đổi đi", THINK("Hook fe-kit đang chặn, nên tôi xác định chủ sở hữu là `AuthenticatedLayout` và quyết định tái sử dụng code cũ.")), None, "deny"),
+    ("labels before a new request", [U("sửa footer"), A(T(OK)), U("đổi đi và liệt kê các trường hợp"), A(T("Tôi chuyển sang hướng 1."))], None, "deny"),
+    # A Bash command that writes a frontend file is gated like Write.
+    ("bash redirect into .tsx", chat("đổi đi", T("Tôi sửa file.")), ("Bash", {"command": "git show HEAD:src/a.tsx | sed 's/x//' > src/a.tsx && npx prettier --write src/a.tsx"}), "deny"),
+    ("bash redirect into .tsx with labels", chat("đổi đi", T(OK)), ("Bash", {"command": "git show HEAD:src/a.tsx | sed 's/x//' > src/a.tsx"}), "allow"),
+    ("bash sed -i on .tsx", chat("đổi đi", T("x")), ("Bash", {"command": "sed -i \"62s/a/b/\" tvmk_admin/src/pages/x-columns.tsx"}), "deny"),
+    ("bash perl -pi on .jsx", chat("đổi đi", T("x")), ("Bash", {"command": "perl -pi -e 's/a/b/' src/A.jsx"}), "deny"),
+    ("bash tee into .vue", chat("đổi đi", T("x")), ("Bash", {"command": "echo x | tee -a src/A.vue"}), "deny"),
+    ("bash cp onto .tsx", chat("đổi đi", T("x")), ("Bash", {"command": "cp /c/x/backup.txt src/A.tsx"}), "deny"),
+    ("bash node writeFileSync on .tsx", chat("đổi đi", T("x")), ("Bash", {"command": "node -e \"require('fs').writeFileSync('src/A.tsx', s)\""}), "deny"),
+    ("bash script into scratchpad", chat("đổi đi", T("x")), ("Bash", {"command": "cat > /c/Users/U/AppData/Local/Temp/claude/s/scratchpad/check.mjs <<'EOF'\nx\nEOF"}), "allow"),
+    ("bash redirect into /tmp .js", chat("đổi đi", T("x")), ("Bash", {"command": "echo x > /tmp/run.js"}), "allow"),
+    ("bash read-only on .tsx", chat("đổi đi", T("x")), ("Bash", {"command": "grep -n footer src/A.tsx 2>/dev/null; git diff -- src/A.tsx"}), "allow"),
+    ("bash stderr redirect", chat("đổi đi", T("x")), ("Bash", {"command": "npx tsc --noEmit 2>&1 | head"}), "allow"),
+    ("bash prettier on .tsx", chat("đổi đi", T("x")), ("Bash", {"command": "npx prettier --write src/A.tsx && npx eslint src/A.tsx"}), "allow"),
+    ("bash write into .ts stays open", chat("đổi đi", T("x")), ("Bash", {"command": "echo x > src/a.ts"}), "allow"),
+    # A script that builds the path in a variable names only the extension.
+    ("bash node loop writes variable .tsx paths", chat("đổi đi", T("x")), ("Bash", {"command": "node -e \"for (const f of files.filter(x => x.endsWith('.tsx'))) fs.writeFileSync(f, s)\""}), "deny"),
+    ("bash node reads .tsx, writes json", chat("đổi đi", T("x")), ("Bash", {"command": "node -e \"const s = fs.readFileSync('src/A.tsx', 'utf8'); fs.writeFileSync('out.json', s)\""}), "allow"),
+    ("bash python Path(...).write_text on .tsx", chat("đổi đi", T("x")), ("Bash", {"command": "python -c \"from pathlib import Path; Path('src/A.tsx').write_text(s)\""}), "deny"),
+    ("bash sed -i over a loop variable", chat("đổi đi", T("x")), ("Bash", {"command": "for f in $(cat list.txt | grep columns.tsx); do sed -i 's/a/b/' \"$f\"; done"}), "deny"),
+    ("bash variable target", chat("đổi đi", T("x")), ("Bash", {"command": "F=src/A.tsx; echo x > \"$F\""}), "deny"),
+    # A relative path after cd into a scratchpad folder is a throwaway file.
+    ("bash node edits a script after cd scratchpad", chat("đổi đi", T("x")), ("Bash", {"command": "SP=\"C:/Users/U/AppData/Local/Temp/claude/s/scratchpad\"; cd \"$SP\"; node -e \"let s=fs.readFileSync('hdr.js','utf8'); fs.writeFileSync('hdr.js', s)\""}), "allow"),
+    ("bash sed -i on a script after cd scratchpad", chat("đổi đi", T("x")), ("Bash", {"command": "cd /tmp/s; sed -i \"s#'CA30': #'CA31': 'ca30/ca3031/x-columns.tsx',#\" check.js"}), "allow"),
+    ("bash cd scratchpad, then cd repo and write .tsx", chat("đổi đi", T("x")), ("Bash", {"command": "cd /tmp/s; node probe.js; cd /d/code/app; sed -i 's/a/b/' src/A.tsx"}), "deny"),
     # Bug mode.
     ("bug, bold repro labels", chat("tổng sai", T(OK + "**Trigger**: click\n**Expected**: 10\n**Actual**: 0")), None, "allow"),
     ("bug, lowercase repro labels", chat("tổng sai", T(OK + "trigger: click\nexpected: 10\nactual: 0")), None, "allow"),
@@ -299,6 +327,27 @@ def run_special():
     check("vi prompt 'đổi màu nút' injects no impl rule (deny = none)", injects("đổi màu nút"), "deny")
     check("prompt naming fe-kit injects rules", injects("sử dung fe-kit để review repo"), "allow")
     check("prompt naming skill://fe-kit injects rules", injects("read skill://fe-kit first"), "allow")
+
+    # The deny message says that prose, a thinking summary, and labels of an earlier request do not count.
+    prose = write_transcript("prose.jsonl", chat("đổi đi", T("Chủ sở hữu là AuthenticatedLayout.")))
+    out = call_gate(dict(base, transcript_path=prose))
+    check("deny explains prose and earlier labels", "allow" if "does not count" in out and "before the latest user message" in out else "deny", "allow")
+    bash = dict(base, transcript_path=prose, tool_name="Bash", tool_input={"command": "sed -i 's/a/b/' src/A.tsx"})
+    check("bash deny names the Bash route", "allow" if "Bash command that writes a frontend file" in call_gate(bash) else "deny", "allow")
+
+    # A script file run through a variable is read from disk, so its writes count too.
+    scripts = os.path.join(TMP, "scratchpad")
+    os.makedirs(scripts, exist_ok=True)
+    def run_script(file_name, source):
+        script = os.path.join(scripts, file_name)
+        with open(script, "w", encoding="utf-8") as handle:
+            handle.write(source)
+        return decision(call_gate(dict(base, transcript_path=prose, tool_name="Bash",
+                                       tool_input={"command": 'S="%s"; node "$S"' % script.replace("\\", "/")})))
+    check("script file that writes .tsx paths in a loop", run_script("rename.mjs",
+          "for (const f of files) if (f.endsWith('.tsx')) fs.writeFileSync(f, fix(fs.readFileSync(f, 'utf8')));"), "deny")
+    check("script file that writes only json", run_script("probe.mjs",
+          "const cols = fs.readFileSync('src/A-columns.tsx', 'utf8');\nfs.writeFileSync('out.json', cols);"), "allow")
 
     # A wording prompt must not drag in the reuse/modules bundle.
     def reuse_injected(prompt):

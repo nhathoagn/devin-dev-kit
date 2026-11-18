@@ -9,6 +9,10 @@ try:
     import wording
 except Exception:
     wording = None
+try:
+    import bash_target
+except Exception:
+    bash_target = None
 
 # The hook payload is UTF-8. Windows Python decodes stdin as cp1252 by default, which breaks Vietnamese prompts.
 raw = sys.stdin.buffer.read().decode("utf-8", errors="replace").strip()
@@ -28,6 +32,13 @@ if isinstance(tool_input, dict):
     path = tool_input.get("file_path") or tool_input.get("path") or ""
 
 cwd = event.get("cwd") or ""
+
+if tool_name == "Bash" and isinstance(tool_input, dict):
+    path = bash_target.write_target(tool_input.get("command") or "", cwd) if bash_target else ""
+    # A Bash command that writes no frontend file has nothing to gate or inject.
+    if not path:
+        sys.exit(0)
+
 full_path = path
 if path and not os.path.isabs(path) and cwd:
     full_path = os.path.join(cwd, path)
@@ -302,11 +313,18 @@ def missing_note(bug_edit):
         missing += ["`%s:` with a value" % key for key, ok in found.items() if not ok]
     if not missing:
         return "The lines were not in the transcript when the hook read it. Write them again in the reply text, then retry."
-    return (
+    note = (
         "Not found after the latest request: " + "; ".join(missing) + ". Retrying the same edit without these lines fails again. "
+        "Write the label, a colon, and the value on its own line, as `Runtime owner: OrderForm` and `Decision: reuse`. "
+        "Prose such as \"the owner is OrderForm and I reuse it\" does not count. "
+        "A thinking summary does not count, because the transcript keeps only the summary. "
+        "Labels written before the latest user message do not count, so write them again for this request. "
         "Reply text written earlier in this turn is saved and counts. Write the missing lines now and retry the edit in this turn. "
         "Do not end the turn to ask the user to continue."
     )
+    if tool_name == "Bash":
+        note += " A Bash command that writes a frontend file is gated like Edit. Do not route the change through Bash to skip the gate."
+    return note
 
 CONFLICT_MARKER_RE = re.compile(r"^(?:<{7}|={7}|>{7}|\|{7})(?:\s|$)", re.M)
 
@@ -395,7 +413,7 @@ def wording_exempt():
         return False
 
 gated_view = (
-    tool_name in ("Write", "Edit", "MultiEdit")
+    tool_name in ("Write", "Edit", "MultiEdit", "Bash")
     and GATED_EXT_RE.search(path)
     and not wording_exempt()
     and not conflict_lines_only()

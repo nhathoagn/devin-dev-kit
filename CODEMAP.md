@@ -8,7 +8,7 @@ plugin-architecture
 │   ├── plugin.json          manifest: tên fe-kit, version 1.15.0
 │   └── marketplace.json     khai báo marketplace để /plugin install fe-kit@fe-kit
 ├── hooks/
-│   └── hooks.json           5 event (UserPromptSubmit, PreToolUse, PostToolUse, SessionStart, PreCompact) → chạy fe-gate.sh
+│   └── hooks.json           5 event (UserPromptSubmit, PreToolUse, PostToolUse, SessionStart, PreCompact) → chạy fe-gate.sh; PreToolUse bắt Write|Edit|MultiEdit|Bash
 ├── scripts/
 │   ├── fe-gate.sh           tìm python3, chuyển stdin JSON sang fe-gate.py; thiếu python3 thì bỏ qua (fail open)
 │   ├── fe-gate.py           lõi gate: đọc transcript, chốt allow/deny, bơm rule theo intent
@@ -18,12 +18,13 @@ plugin-architecture
 │   │   ├── run_repo_rules() :544  gọi <repo>/.claude/rules.sh nếu có, fail → exit 2
 │   │   ├── deny path :435    in JSON permissionDecision=deny + exit 0 (PostToolUse mới dùng exit 2)
 │   │   └── emit()           :565  in JSON additionalContext trả cho hook
+│   ├── bash_target.py       Bash command → file frontend nó ghi (redirect, tee, cp/mv, sed/perl -i, script writeFileSync/write_text, đọc cả file script, theo cd); thư mục tmp/temp/scratchpad được bỏ qua
 │   ├── wording.py           lexer JS/TS/JSX + token diff: JSX text, text attr, copy call/property, style, comment = wording
 │   ├── test_wording.py      78 test lexer/token diff
-│   └── test_fe_gate.py      124 test cho hành vi fe-gate.py
+│   └── test_fe_gate.py      152 test cho hành vi fe-gate.py
 ├── extensions/
-│   ├── fe-gate.ts           omp extension (khai báo `omp.extensions` trong package.json): map edit/ast_edit/write sang payload gate (nhận old_string, oldText, oldString, old_str, old, search; edits[]), chặn edit thiếu nhãn qua tool_call, kiểm conflict/rules.sh sau ghi qua tool_result — gọi cùng scripts/fe-gate.sh; ghi verdict cuối (ok/blocked/note/rules) lên status line
-│   └── fe-gate.test.ts      25 case `node --test`, spawn gate thật
+│   ├── fe-gate.ts           omp extension (khai báo `omp.extensions` trong package.json): map edit/ast_edit/write/bash sang payload gate (nhận old_string, oldText, oldString, old_str, old, search; edits[]), chặn edit thiếu nhãn qua tool_call, kiểm conflict/rules.sh sau ghi qua tool_result — gọi cùng scripts/fe-gate.sh; ghi verdict cuối (ok/blocked/note/rules) lên status line
+│   └── fe-gate.test.ts      28 case `node --test`, spawn gate thật (Windows: qua `sh`, đường dẫn dấu /)
 ├── rules/                   nội dung bơm vào prompt (hook nạp, không phải agent tự đọc)
 │   ├── fe-implementation.md quy trình edit: quyết định trước, code sau
 │   ├── reuse-duplication.md tái sử dụng implementation có sẵn, cấm viết trùng
@@ -52,7 +53,7 @@ plugin-architecture
 
 ```text
 prompt vào ──► UserPromptSubmit ──► fe-gate.py: nhận diện intent → bơm rule tương ứng
-ghi file ────► PreToolUse       ──► fe-gate.py: conflict_edit? → qua; gate_open? → thiếu nhãn thì DENY, agent phải điền
+ghi file ────► PreToolUse       ──► fe-gate.py: conflict_edit? → qua; gate_open? → thiếu nhãn thì DENY, agent phải điền (Bash ghi file frontend cũng bị gate như Write)
 ghi xong ────► PostToolUse      ──► fe-gate.py: conflict marker còn? rules.sh fail? → exit 2
 compact      ──► SessionStart / PreCompact ──► fe-gate.py: transcript còn frontend work? → bơm lại rule
 ```
@@ -132,8 +133,8 @@ Báo cáo: Verdict đứng đầu, mỗi miss là 1 câu, xong rồi dừng.
 
 ```text
 python3 scripts/test_wording.py          78 test lexer/token diff (copy vs code)
-python3 scripts/test_fe_gate.py          124 test hành vi gate (deny/allow, intent, conflict, file type)
-node --test extensions/fe-gate.test.ts   20 test extension omp: verdict, prompt, chặn edit, wording
+python3 scripts/test_fe_gate.py          152 test hành vi gate (deny/allow, intent, conflict, file type, Bash ghi file)
+node --test extensions/fe-gate.test.ts   28 test extension omp: verdict, prompt, chặn edit, wording
 cat skills/fe-kit/evals/triggers.json    16 query mẫu: should_trigger true/false — kiểm intent regex
 sh scripts/fe-gate.sh < event.json        chạy thật 1 event với payload giả
 claude --debug -p "review the diff"      rồi grep "Loading hooks from plugin: fe-kit" ~/.claude/debug/latest
