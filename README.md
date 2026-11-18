@@ -1,6 +1,6 @@
 # fe-kit
 
-![version](https://img.shields.io/badge/version-1.19.0-blue)
+![version](https://img.shields.io/badge/version-1.21.0-blue)
 ![hosts](https://img.shields.io/badge/hosts-Claude%20Code%20%7C%20omp-6e56cf)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -26,23 +26,20 @@ Sửa màn chi tiết đơn hàng: đổi trạng thái giờ hiện sai múi gi
 Agent định sửa file. Gate chặn:
 
 ```text
-⛔ blocked — Fill Runtime owner and a Reuse Decision (reuse, extend, feature-local,
-shared, or n/a with a reason) from skill fe-kit before editing this file.
+⛔ blocked — Blocked. Run this Bash command with each <...> replaced by a real value,
+then retry the same edit: echo "Runtime owner: <the component or hook that runs
+order-detail.tsx>" "Decision: <reuse|extend|feature-local|shared|n/a>" "Trigger: <steps>" ...
 ```
 
-Agent phải trả lời trước, bằng chữ, trong reply:
+Agent chạy lệnh đó với giá trị thật:
 
-```text
-Runtime owner: OrderDetail — page chỉ compose, form runtime ở OrderForm.
-Decision: reuse — đã có formatDateTime trong lib/format; không viết lại.
-Trigger: đơn tạo lúc 23:30 hiện ngày hôm sau.
-Expected: hiện đúng ngày tạo theo giờ máy.
-Actual: lệch một ngày với đơn tạo sau 17:00 UTC.
+```bash
+echo "Runtime owner: OrderForm" "Decision: reuse"   "Trigger: đơn tạo lúc 23:30 hiện ngày hôm sau"   "Expected: hiện đúng ngày tạo theo giờ máy"   "Actual: lệch một ngày với đơn tạo sau 17:00 UTC"
 ```
 
-Sửa lần này đi qua. Agent không "nghĩ thầm" được — nhãn phải nằm trong câu trả lời.
-Lý do: một phiên trước đó agent ghi plan trong thinking, gate không đọc thấy, và nó chặn
-đúng 8 lần liên tiếp vì lý do chính đáng.
+Gate đọc nhãn từ chính lệnh Bash đó và lưu theo session và request. Sửa lần này đi qua.
+Nhãn viết trên từng dòng trong reply text vẫn được tính. Nhãn trong thinking thì không,
+vì transcript không giữ nội dung thinking.
 
 ---
 

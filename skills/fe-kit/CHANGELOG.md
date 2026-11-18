@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.21.0
+
+In 105 gate denials across the JTEK sessions, 82 were repeats inside one request, and 68 of those had no new reply text before the retry. The agent wrote its labels in a thinking block, which the transcript keeps empty, or not at all. In 4 to 5 cases the labels were in the reply text but the transcript did not have them yet when the hook read it. The rules that the hook injects did not name the label format, so every request got at least one denial.
+
+- New `scripts/label_store.py`: one plain `echo` or `printf` Bash command with `Runtime owner:`, `Decision:`, `Trigger:`, `Expected:`, or `Actual:` is a declaration. A pipe, a redirect, a chain, or a substitution is not. The labels are saved under the session id, or the transcript path when the host sends no id, plus the agent id and the latest request.
+- `scripts/fe-gate.py` allows a declaration and saves it, then reads the saved labels next to the transcript. Labels of an earlier request do not count. A subagent also sees the main agent's labels. A value that starts with `<` is a placeholder and does not count.
+- The deny message starts with the `echo` command to run, with the file name filled in. Reply-text labels still count.
+- `extensions/fe-gate.ts` sends `session_id` from `ctx.sessionManager.getSessionId()`, because it writes a new transcript file on every call.
+- `rules/fe-implementation.md` and `skills/fe-kit/SKILL.md` name the label format and the declaration command.
+- Tests: `scripts/test_fe_gate.py` runs 172 cases (20 new). `extensions/fe-gate.test.ts` runs 29 cases (1 new).
+
 ## 1.20.0
 
 A new request ("đổi đi và liệt kê…") dropped the labels of the earlier request. The agent then named the owner only in prose and in a thinking summary, so the gate denied two Edit calls. The agent wrote the file with `git show … | sed … > file.tsx` instead, and Bash was not gated.

@@ -6,6 +6,7 @@ import { after, test } from "node:test";
 import feGate from "./fe-gate.ts";
 
 process.env.FE_GATE_NO_FLUSH = "1";
+process.env.FE_GATE_STATE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "fe-gate-state-"));
 
 type Handler = (event: unknown, ctx: unknown) => unknown;
 
@@ -34,7 +35,10 @@ feGate({
 });
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "fe-gate-test-"));
-after(() => fs.rmSync(root, { recursive: true, force: true }));
+after(() => {
+  fs.rmSync(root, { recursive: true, force: true });
+  fs.rmSync(process.env.FE_GATE_STATE_DIR ?? "", { recursive: true, force: true });
+});
 
 function handlerFor(name: string): Handler {
   const handler = handlers[name];
@@ -124,6 +128,20 @@ test("allows a bash command that writes a frontend file when the labels are ther
   ];
   const event = { type: "tool_call", toolName: "bash", input: { command: "sed -i 's/a/b/' src/X.tsx" } };
   assert.equal(await handlerFor("tool_call")(event, makeCtx(entries)), undefined);
+});
+
+test("allows a gated edit after an echo declaration in the same session", async () => {
+  const entries = [{ type: "message", message: { role: "user", content: "add a column to DA1020" } }];
+  const ctx = (sessionId: string): unknown => ({
+    cwd: root,
+    sessionManager: { getEntries: () => entries, getSessionId: () => sessionId },
+  });
+  const declare = { type: "tool_call", toolName: "bash", input: { command: 'echo "Runtime owner: Da1020Columns" "Decision: reuse"' } };
+  assert.equal(await handlerFor("tool_call")(declare, ctx("omp-a")), undefined);
+  assert.equal(await handlerFor("tool_call")(editEvent("src/X.tsx", ...codeChange), ctx("omp-a")), undefined);
+  const other = readDenial(await handlerFor("tool_call")(editEvent("src/X.tsx", ...codeChange), ctx("omp-b")));
+  assert.ok(other, "another session must not see the declaration");
+  assert.match(other.reason, /^Blocked\. Run this Bash command/);
 });
 
 test("leaves a bash tool result alone", async () => {

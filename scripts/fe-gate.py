@@ -13,6 +13,10 @@ try:
     import bash_target
 except Exception:
     bash_target = None
+try:
+    import label_store
+except Exception:
+    label_store = None
 
 # The hook payload is UTF-8. Windows Python decodes stdin as cp1252 by default, which breaks Vietnamese prompts.
 raw = sys.stdin.buffer.read().decode("utf-8", errors="replace").strip()
@@ -35,8 +39,9 @@ cwd = event.get("cwd") or ""
 
 if tool_name == "Bash" and isinstance(tool_input, dict):
     path = bash_target.write_target(tool_input.get("command") or "", cwd) if bash_target else ""
-    # A Bash command that writes no frontend file has nothing to gate or inject.
-    if not path:
+    declared = label_store.declared_lines(tool_input.get("command") or "") if label_store and not path else []
+    # A Bash command that writes no frontend file and declares no label has nothing to gate or inject.
+    if not path and not declared:
         sys.exit(0)
 
 full_path = path
@@ -128,7 +133,7 @@ COLON = "[:：]"
 # A label can be bold or italic, as in **Decision**: or _Decision_:.
 LABEL_END = "[*_]*" + COLON
 # A value starts after the colon. A comma, or a backquote right after the colon, is prose that names the field.
-VALUE = r"(?:[ \t]+`?[^\s,`]|[^\s,`])"
+VALUE = r"(?:[ \t]+`?[^\s,`<]|[^\s,`<])"
 REPRODUCE_LABELS = {"Trigger": "Trigger|Steps?", "Expected": "Expected", "Actual": "Actual"}
 # A person can end a line with the label and put the value on the next line.
 NEXT_LINE_VALUE = r"[ \t]*\n\s*(?!`|\||(?:Trigger|Steps?|Expected|Actual)\b)\S"
@@ -239,11 +244,36 @@ def subagent_transcript():
     candidate = os.path.join(session_dir, "subagents", "agent-%s.jsonl" % agent_id)
     return candidate if os.path.isfile(candidate) else ""
 
+def label_session():
+    # omp writes a new transcript file on every call, so the session id comes first.
+    session = event.get("session_id") or ""
+    if session:
+        return "session:" + session
+    transcript = event.get("transcript_path") or ""
+    return "transcript:" + os.path.normcase(os.path.abspath(transcript)) if transcript else ""
+
+def declared_texts():
+    # Labels from an echo declaration of the latest request. A subagent also sees the main agent's labels.
+    if not label_store:
+        return []
+    main = event.get("transcript_path") or ""
+    request = latest_user_text(main)
+    agent_ids = [""]
+    if event.get("agent_id"):
+        agent_ids.append(event.get("agent_id"))
+    texts = []
+    for agent_id in agent_ids:
+        lines = label_store.load(label_session(), agent_id, request)
+        if lines:
+            texts.append("\n".join(lines))
+    return texts
+
 def scoped_entries():
     entries = []
     for transcript in (event.get("transcript_path") or "", subagent_transcript()):
         if transcript and os.path.isfile(transcript):
             entries.extend(request_scope(transcript))
+    entries.extend(("declared", text) for text in declared_texts())
     return entries
 
 DECISION_WORD = r"\b(reuse|extend|feature-local|shared|n/a)\b"
@@ -253,7 +283,7 @@ HEADING_RE = re.compile(r"^\s*#{1,6}\s")
 SECTION_DECISION_RE = re.compile(r"[:：]\s*[*_`]*\s*" + DECISION_WORD, re.I)
 OWNER_LINE_RE = re.compile(r"Runtime owner[*_]*[:：][ \t]*[*_`]*[ \t]*([^\s,`]+)", re.I)
 OWNER_PLACEHOLDER_RE = re.compile(
-    r"^(?:tbd|tba|todo|to-do|none|null|nil|unknown|n/a|na|pending|placeholder|x+|\.+|\?+|-+)$",
+    r"^(?:tbd|tba|todo|to-do|none|null|nil|unknown|n/a|na|pending|placeholder|x+|\.+|\?+|-+|<.*)$",
     re.I,
 )
 # The decision word must follow the colon, so "Decision: do not reuse" is not a reuse decision.
@@ -274,7 +304,7 @@ def owner_value(line):
 def decisions_found():
     # Returns (owner found, decision found) for the current request.
     transcript = event.get("transcript_path") or ""
-    if not transcript or not os.path.isfile(transcript):
+    if not transcript:
         return False, False
     found_owner = False
     found_reuse = False
@@ -441,9 +471,32 @@ FLUSH_RETRIES = 10
 FLUSH_WAIT_SECONDS = 0.3
 
 # A conflict resolution is a merge, not a bug fix, even when the user said the merge failed.
+if name == "PreToolUse" and tool_name == "Bash" and not path:
+    # A declaration is allowed. Its labels are saved for the gated edits of the same request.
+    transcript = event.get("transcript_path") or ""
+    saved = label_store.save(label_session(), event.get("agent_id") or "", latest_user_text(transcript), declared)
+    note = "fe-kit recorded these labels for this request: %s. Retry the edit now." % "; ".join(declared)
+    if not saved:
+        note = "fe-kit could not save the labels, because the payload has no session. Write them in the reply text."
+    print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": note}}))
+    sys.exit(0)
+
+def declare_command(bug_edit):
+    target = os.path.basename(path) or "this file"
+    parts = ['"Runtime owner: <the component or hook that runs %s>"' % target,
+             '"Decision: <reuse|extend|feature-local|shared|n/a>"']
+    if bug_edit:
+        parts += ['"Trigger: <steps>"', '"Expected: <value>"', '"Actual: <value>"']
+    return "echo " + " ".join(parts)
+
 bug_edit = gated_view and not conflict_edit() and user_is_bug(event.get("transcript_path") or "")
 if name == "PreToolUse" and gated_view and not gate_open_after_flush(bug_edit):
-    reason = DENY_REASON
+    # The command comes first, because an agent follows "run X" more reliably than "write text".
+    reason = (
+        "Blocked. Run this Bash command with each <...> replaced by a real value, then retry the same edit: "
+        + declare_command(bug_edit) + " . "
+    )
+    reason += DENY_REASON
     if bug_edit:
         reason += " " + DENY_BUG_REASON
     reason += " " + missing_note(bug_edit)

@@ -104,6 +104,8 @@ Before finishing:
 
 Use this structure. Fill every section. Do not leave sections blank.
 
+The edit gate checks `Runtime owner:` and `Decision:`, each with a value after the colon. Declare them before the first edit with one Bash command, as in `echo "Runtime owner: OrderForm" "Decision: reuse"`, or write each one on its own line in the reply text. A table row or a thinking block does not count.
+
 A screen review uses the Vietnamese template in `playbooks/review-ui.md` and then stops. A diff review is not written by the author. The fresh reviewer uses the template in `playbooks/review-diff.md` and then stops. Do not also fill the template below.
 ```md
 ## Architecture

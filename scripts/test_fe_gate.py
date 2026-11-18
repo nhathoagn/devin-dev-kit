@@ -14,8 +14,9 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 GATE = os.path.join(HERE, "fe-gate.py")
-ENV = dict(os.environ, FE_ARCH_ROOT=os.path.dirname(HERE), FE_GATE_NO_FLUSH="1")
 TMP = tempfile.mkdtemp(prefix="fe-gate-test-")
+ENV = dict(os.environ, FE_ARCH_ROOT=os.path.dirname(HERE), FE_GATE_NO_FLUSH="1",
+           FE_GATE_STATE_DIR=os.path.join(TMP, "state"))
 
 def U(text, **extra):
     return dict({"type": "user", "message": {"role": "user", "content": text}}, **extra)
@@ -357,6 +358,79 @@ def run_special():
     check("sửa copy injects no reuse bundle", reuse_injected("sửa copy màn chi tiết"), "deny")
     check("đổi text injects nothing", reuse_injected("đổi text nút Lưu"), "deny")
     check("sửa lỗi chính tả injects no bug rules", injects("sửa lỗi chính tả"), "deny")
+
+    # An echo declaration is read from the Bash payload, so a thinking block or a late transcript write does not lose it.
+    def declare(transcript, command, agent_id=None):
+        payload = dict(base, transcript_path=transcript, tool_name="Bash", tool_input={"command": command})
+        if agent_id:
+            payload["agent_id"] = agent_id
+        return call_gate(payload)
+    def edit(transcript, agent_id=None):
+        payload = dict(base, transcript_path=transcript)
+        if agent_id:
+            payload["agent_id"] = agent_id
+        return decision(call_gate(payload))
+    declared = write_transcript("declare.jsonl", [U("thêm cột vào DA1020"), A(THINK(""))])
+    check("edit with no labels before a declaration", edit(declared), "deny")
+    out = declare(declared, 'echo "Runtime owner: Da1020Columns" "Decision: feature-local"')
+    check("declaration is allowed and confirmed", "allow" if '"deny"' not in out and "recorded" in out else "deny", "allow")
+    check("edit after an echo declaration", edit(declared), "allow")
+
+    renewed = write_transcript("declare-new.jsonl", [U("thêm cột vào DA1020"), A(THINK(""))])
+    declare(renewed, 'echo "Runtime owner: Da1020Columns" "Decision: reuse"')
+    with open(renewed, "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(U("giờ sửa màn DA1021 header")) + "\n")
+    check("declaration of an earlier request does not count", edit(renewed), "deny")
+    continued = write_transcript("declare-ok.jsonl", [U("thêm cột vào DA1020")])
+    declare(continued, 'echo "Runtime owner: Da1020Columns" "Decision: reuse"')
+    with open(continued, "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(U("ok")) + "\n")
+    check("declaration survives a continuation reply", edit(continued), "allow")
+
+    placeholder = write_transcript("declare-ph.jsonl", [U("thêm cột vào DA1020")])
+    declare(placeholder, 'echo "Runtime owner: <the component or hook that runs B.tsx>" "Decision: <reuse|extend|feature-local|shared|n/a>"')
+    check("copied placeholder declaration does not count", edit(placeholder), "deny")
+    printf = write_transcript("declare-printf.jsonl", [U("thêm cột vào DA1020")])
+    declare(printf, "printf 'Runtime owner: Da1020Columns\\nDecision: extend\\n'")
+    check("printf declaration with a backslash-n counts", edit(printf), "allow")
+    for label, command in (("pipe", 'echo "Runtime owner: A" "Decision: reuse" | tee log.txt'),
+                           ("chain", 'echo "Runtime owner: A" "Decision: reuse" && ls'),
+                           ("substitution", 'echo "Runtime owner: $(whoami)" "Decision: reuse"'),
+                           ("grep", 'grep -n "Runtime owner: A" "Decision: reuse" rules')):
+        other = write_transcript("declare-%s.jsonl" % label, [U("thêm cột vào DA1020")])
+        out = declare(other, command)
+        check("%s is not a declaration" % label, "allow" if out.strip() == "" and edit(other) == "deny" else "deny", "allow")
+    redirect = write_transcript("declare-redirect.jsonl", [U("thêm cột vào DA1020")])
+    check("echo with labels into a .tsx file is gated", decision(declare(redirect, 'echo "Runtime owner: A" "Decision: reuse" > src/B.tsx')), "deny")
+
+    bug = write_transcript("declare-bug.jsonl", [U("tổng sai khi bấm Lưu ở DA1020")])
+    declare(bug, 'echo "Runtime owner: Da1020Form" "Decision: extend"')
+    check("bug edit with owner and decision only", edit(bug), "deny+bug")
+    declare(bug, 'echo "Trigger: click Save" "Expected: 10" "Actual: 0"')
+    check("bug edit after a second declaration adds the repro", edit(bug), "allow")
+
+    shared = write_transcript("declare-sub.jsonl", [U("thêm cột vào DA1020")])
+    declare(shared, 'echo "Runtime owner: Da1020Columns" "Decision: reuse"')
+    check("subagent edit sees the main declaration", edit(shared, agent_id="sub1"), "allow")
+    own = write_transcript("declare-sub-own.jsonl", [U("thêm cột vào DA1020")])
+    declare(own, 'echo "Runtime owner: Da1020Columns" "Decision: reuse"', agent_id="sub2")
+    check("main agent edit does not see a subagent declaration", edit(own), "deny")
+    check("subagent edit sees its own declaration", edit(own, agent_id="sub2"), "allow")
+
+    # omp writes a new transcript file on every call, so the session id keys the declaration.
+    first = write_transcript("omp-1.jsonl", [U("thêm cột vào DA1020")])
+    second = write_transcript("omp-2.jsonl", [U("thêm cột vào DA1020")])
+    call_gate(dict(base, transcript_path=first, session_id="omp-s1", tool_name="Bash",
+                   tool_input={"command": 'echo "Runtime owner: Da1020Columns" "Decision: reuse"'}))
+    check("session id carries a declaration to a new transcript file",
+          decision(call_gate(dict(base, transcript_path=second, session_id="omp-s1"))), "allow")
+    check("another session id does not see it",
+          decision(call_gate(dict(base, transcript_path=second, session_id="omp-s2"))), "deny")
+
+    lead = call_gate(dict(base, transcript_path=write_transcript("lead.jsonl", [U("thêm cột")])))
+    reason = json.loads(lead)["hookSpecificOutput"]["permissionDecisionReason"]
+    check("deny starts with the command and names the file",
+          "allow" if reason.startswith("Blocked. Run this Bash command") and 'echo "Runtime owner: <the component or hook that runs B.tsx>"' in reason else "deny", "allow")
     return failures
 
 if __name__ == "__main__":

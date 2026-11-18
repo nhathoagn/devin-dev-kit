@@ -20,7 +20,7 @@ interface ExtensionAPI {
 
 interface GateCtx {
   cwd?: string;
-  sessionManager?: { getEntries?: () => unknown };
+  sessionManager?: { getEntries?: () => unknown; getSessionId?: () => unknown };
   ui?: {
     setStatus?: (key: string, text: string | undefined) => void;
     theme?: { fg?: (name: string, text: string) => string };
@@ -44,6 +44,7 @@ interface GatePayload {
   tool_input: Record<string, unknown>;
   cwd: string;
   transcript_path: string;
+  session_id?: string;
 }
 
 interface ResultModification {
@@ -324,6 +325,15 @@ function runGate(payload: GatePayload): Promise<GateOutcome> {
   return promise;
 }
 
+function sessionIdOf(ctx: GateCtx): string {
+  try {
+    const id = ctx.sessionManager?.getSessionId?.();
+    return typeof id === "string" ? id : "";
+  } catch {
+    return "";
+  }
+}
+
 async function withTranscript<T>(ctx: GateCtx, run: (transcriptPath: string) => Promise<T>): Promise<T> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fe-gate-"));
   try {
@@ -355,8 +365,10 @@ async function handleToolCall(
   try {
     return await withTranscript(ctx, async (transcriptPath) => {
       const payloads = toPayload(event, ctx, transcriptPath);
+      // The transcript file is new on every call, so declared labels are keyed by the session id.
+      const sessionId = sessionIdOf(ctx);
       for (const payload of payloads) {
-        const outcome = await runGate(payload);
+        const outcome = await runGate(sessionId ? { ...payload, session_id: sessionId } : payload);
         if (outcome.kind === "deny") {
           showGateStatus(ctx, "blocked");
           return { block: true, reason: outcome.reason };
