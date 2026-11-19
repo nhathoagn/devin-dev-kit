@@ -178,6 +178,7 @@ Files in scope:
 
 - Before adding or changing code, follow `rules/reuse-duplication.md`.
 - A different job goes in a new file, per `rules/modules.md`. Do not grow a file that already has one job.
+- Comments follow `rules/comments.md`.
 - A review's only user-facing output is the Vietnamese report in `playbooks/review-ui.md`, or the diff report in `playbooks/review-diff.md` when a fresh reviewer writes it. Kết luận is first for a screen review. The diff report's Verdict is first for a diff. Then stop. Do not fill the template below. Do not re-read the tree to rewrite the report.
 - Do not write implementation code until the Architecture and Reuse Decision sections are filled. Fill them in the reply text for the reader. The edit hook reads only the `echo` declaration. A review records the reuse decision under Dùng lại, and a wrong owner under Việc nên làm, instead of those sections.
 - Never invent a new shared component or hook just because it might be useful later.
@@ -233,7 +234,8 @@ Files in scope:
 | Skip an accessible name on a button or input | Add a label or `aria-label`. |
 | Expand scope to fix nearby code | Keep the change surgical. Mention unrelated issues. |
 | Skip recording the decision | Fill the output template first. |
-| Add a helper for one call site | Write it inline. Keep the comment. |
+| Add a helper for one call site | Write it inline. Keep a comment only if it satisfies `rules/comments.md`. |
+| Workaround comment or correctness `eslint-disable` / `@ts-ignore` | Fix the root cause or encode the constraint per `rules/comments.md`, then delete the comment. |
 | `fn(x, 2)` with a bare number | Name it: `fn(x, { span: 2 })`. |
 | `z.record(...)` for a known response | Declare each field from the server source. |
 | Shorten by building names from a prefix | Keep full names so a search finds them. |

@@ -608,7 +608,7 @@ def project_config_context():
             % (project_config.CONFIG_PATH, project_rules_command("author")))
 
 def rule_bundle():
-    return load_rule("reuse-duplication.md") + "\n\n" + load_rule("modules.md")
+    return load_rule("reuse-duplication.md") + "\n\n" + load_rule("modules.md") + "\n\n" + load_rule("comments.md")
 
 def text_has_frontend(text):
     if not text:
