@@ -17,6 +17,10 @@ try:
     import label_store
 except Exception:
     label_store = None
+try:
+    import project_config
+except Exception:
+    project_config = None
 
 # The hook payload is UTF-8. Windows Python decodes stdin as cp1252 by default, which breaks Vietnamese prompts.
 raw = sys.stdin.buffer.read().decode("utf-8", errors="replace").strip()
@@ -125,7 +129,7 @@ def transcript_lines(path):
     with handle:
         return handle.readlines()
 
-DENY_REASON = "Fill Runtime owner and a Reuse Decision (reuse, extend, feature-local, shared, or n/a with a reason) from skill fe-kit before editing this file. Write each one in the reply text, on its own line, after the latest request and before the edit call: `Runtime owner:` and a name, `Decision:` and one decision. Thinking is not always saved, so write the lines in the reply text. A table row does not count. Only a behaviorless wording or style change is exempt."
+DENY_REASON = "Only a behaviorless wording or style change is exempt."
 DENY_BUG_REASON = "A bug fix also needs Trigger:, Expected:, and Actual:, each with a value, from playbooks/fix-bug.md."
 REMINDER_RE = re.compile(r"<system-reminder>.*?</system-reminder>", re.S)
 # A Japanese IME types the full-width colon.
@@ -281,11 +285,19 @@ def declared_texts():
             texts.append("\n".join(lines))
     return texts
 
+def declared_only():
+    # With a session id, Claude's labels count only from a declaration.
+    # The hook can read the transcript before the host writes the reply text.
+    return label_store is not None and bool(event.get("session_id"))
+
 def scoped_entries():
     entries = []
     for transcript in (event.get("transcript_path") or "", subagent_transcript()):
         if transcript and os.path.isfile(transcript):
             entries.extend(request_scope(transcript))
+    if declared_only():
+        # Text a person typed and a compact summary are in the transcript before the hook runs.
+        entries = [(role, text) for role, text in entries if role != "assistant"]
     entries.extend(("declared", text) for text in declared_texts())
     return entries
 
@@ -316,9 +328,6 @@ def owner_value(line):
 
 def decisions_found():
     # Returns (owner found, decision found) for the current request.
-    transcript = event.get("transcript_path") or ""
-    if not transcript:
-        return False, False
     found_owner = False
     found_reuse = False
     for _, text in scoped_entries():
@@ -355,15 +364,16 @@ def missing_note(bug_edit):
         found = reproduce_found()
         missing += ["`%s:` with a value" % key for key, ok in found.items() if not ok]
     if not missing:
-        return "The lines were not in the transcript when the hook read it. Write them again in the reply text, then retry."
-    note = (
-        "Not found after the latest request: " + "; ".join(missing) + ". Retrying the same edit without these lines fails again. "
-        "Write the label, a colon, and the value on its own line, as `Runtime owner: OrderForm` and `Decision: reuse`. "
-        "Prose such as \"the owner is OrderForm and I reuse it\" does not count. "
-        "A thinking summary does not count, because the transcript keeps only the summary. "
-        "Labels written before the latest user message do not count, so write them again for this request. "
-        "Reply text written earlier in this turn is saved and counts. Write the missing lines now and retry the edit in this turn. "
-        "Do not end the turn to ask the user to continue."
+        return "The lines were not in the transcript when the hook read it. Run the command, then retry."
+    note = "Not found after the latest request: " + "; ".join(missing) + ". "
+    if declared_only():
+        note += "Labels in the reply text, in thinking, or in prose do not count. "
+    else:
+        note += ("This payload has no session id, so a reply-text line such as `Runtime owner: <name>` also counts. "
+                 "Thinking, prose, and a table row do not count. ")
+    note += (
+        "Labels written before the latest user message do not count, so declare them again for this request. "
+        + DENY_REASON + " Run the command now and retry the edit in this turn. Do not end the turn to ask the user to continue."
     )
     if tool_name == "Bash":
         note += " A Bash command that writes a frontend file is gated like Edit. Do not route the change through Bash to skip the gate."
@@ -470,7 +480,7 @@ def gate_open_after_flush(bug_edit):
     # Claude Code can write the reply text of the current turn after this hook reads the transcript.
     # Read again for a short time before a deny, so lines written just before the edit call count.
     import time
-    if os.environ.get("FE_GATE_NO_FLUSH") == "1":
+    if os.environ.get("FE_GATE_NO_FLUSH") == "1" or declared_only():
         return gate_open(bug_edit)
     if gate_open(bug_edit):
         return True
@@ -489,7 +499,9 @@ if name == "PreToolUse" and tool_name == "Bash" and not path:
     transcript = event.get("transcript_path") or ""
     saved = label_store.save(label_session(), event.get("agent_id") or "", latest_user_text(transcript), declared)
     note = "fe-kit recorded these labels for this request: %s. Retry the edit now." % "; ".join(declared)
-    if not saved:
+    if not saved and declared_only():
+        note = "fe-kit could not save the labels, because the state folder is not writable. Tell the user."
+    elif not saved:
         note = "fe-kit could not save the labels, because the payload has no session. Write them in the reply text."
     print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": note}}))
     sys.exit(0)
@@ -509,10 +521,9 @@ if name == "PreToolUse" and gated_view and not gate_open_after_flush(bug_edit):
         "Blocked. Run this Bash command with each <...> replaced by a real value, then retry the same edit: "
         + declare_command(bug_edit) + " . "
     )
-    reason += DENY_REASON
     if bug_edit:
-        reason += " " + DENY_BUG_REASON
-    reason += " " + missing_note(bug_edit)
+        reason += DENY_BUG_REASON + " "
+    reason += missing_note(bug_edit)
     print(json.dumps({
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
@@ -578,9 +589,23 @@ def load_rule(filename):
     text = open(path, encoding="utf-8").read()
     return re.sub(r"^---\n.*?\n---\n*", "", text, count=1, flags=re.S).strip()
 
+def project_rules_command(mode):
+    script = os.path.join(plugin_root(), "scripts", "project_config.py").replace("\\", "/")
+    root = (project_root(cwd) or ".").replace("\\", "/")
+    return 'python3 "%s" --root "%s" --mode %s' % (script, root, mode)
+
 def review_context():
     playbook = os.path.join(plugin_root(), "skills", "fe-kit", "playbooks", "review-diff.md")
-    return load_rule("review-diff.md") + "\n\nPlaybook path: " + playbook
+    return (load_rule("review-diff.md") + "\n\nPlaybook path: " + playbook
+            + "\n\nProject rules command: " + project_rules_command("review"))
+
+def project_config_context():
+    # Only a repo that wrote a config gets this line, because the fallback search needs no reminder.
+    if not project_config or not os.path.isfile(os.path.join(project_root(cwd), project_config.CONFIG_PATH)):
+        return ""
+    return ("This repo has %s. Before the first edit, run `%s --files <each file you will change>` "
+            "and read each `read:` line. Use its `gate:` commands to verify."
+            % (project_config.CONFIG_PATH, project_rules_command("author")))
 
 def rule_bundle():
     return load_rule("reuse-duplication.md") + "\n\n" + load_rule("modules.md")
@@ -692,9 +717,13 @@ if name == "SessionStart" and event.get("source") == "compact" and transcript_ha
     bodies.append(load_rule("fe-implementation.md"))
     bodies.append(rule_bundle())
     bodies.append(review_context())
+    if project_config_context():
+        bodies.append(project_config_context())
 elif name == "UserPromptSubmit":
     if prompt_hit or bug_hit:
         bodies.append(load_rule("fe-implementation.md"))
+        if project_config_context():
+            bodies.append(project_config_context())
     if (prompt_hit or reuse_hit or author_hit or bug_hit) and not (wording_hit and not bug_hit):
         bodies.append(rule_bundle())
     if prompt_hit or review_hit:

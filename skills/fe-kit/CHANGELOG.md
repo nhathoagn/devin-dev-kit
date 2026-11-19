@@ -1,5 +1,61 @@
 # Changelog
 
+## 1.23.0
+
+The reviewer read project rules only from a root `REVIEW_CHECKLIST.md`. The JTEK repo keeps its FE rules in `tvmk_admin/rules/` and maps them by path in `workflow/lenses/paths.yaml`, so the reviewer read none of them. The spec search looked only in `docs/`, `specs/`, and `.scratch/`, and the repo keeps approved designs in `works/design/`. The reviewer also had no step to search callers outside the diff, no step to drop a wrong finding, and no check of its report. `marketplace.json` stayed at 1.19.0 through 1.22.0, so `/plugin install` could keep an old build.
+
+- New `scripts/project_config.py`: changed files → the project rule files to read, the spec folders, the gate commands, and the excluded files. The repo file `.fe-kit/config.yaml` is optional. With no config, the script searches `AGENTS.md`, `CLAUDE.md`, and `rules/` folders from the repo root to each file's folder, and a root `REVIEW_CHECKLIST.md` on a review. A broken config exits 2 with the line number.
+- New `scripts/yaml_subset.py`: reads the YAML subset of the config with the standard library only, because the hooks must run without PyYAML. Syntax outside the subset raises an error with the line number, and is never read in a wrong way.
+- New `presets/legacy-rewrite/`: `design.md` (questions before code) and `review.md` (a behavior that matches the old system, with no change request, is not a finding). A config lists presets by name, or by a `./` path in the repo.
+- New `scripts/review_check.py`: exit 1 when the verdict sentence is missing, the verdict does not match the finding levels, a `file:line` does not exist, or `Nguồn và độ phủ` misses a file of the diff. A reference outside the diff is a `!` warning.
+- `playbooks/review-diff.md`: runs the project rules command in step 1, takes the spec folders from it, applies the project rules in step 4, searches callers outside the diff in step 5, checks each finding again in step 7, and runs `review_check.py` in step 9. The reviewer writes the gate result it was given and does not run the gate.
+- `references/review-output.md`: new section `Nguồn và độ phủ` with `Luật đã đọc:`, `Cổng:`, and `Độ phủ:`.
+- `SKILL.md`: the author runs the project rules command before the first edit. The hand-off holds the gate result and an approved design file, and still no author notes.
+- `scripts/fe-gate.py`: the review context carries the full project rules command. A repo with `.fe-kit/config.yaml` also gets the author command on a frontend prompt and after compact.
+- `references/review-checks.md` F23: a component declared inside another component. `references/audit.md` Operational flow: two tabs on one record, and Enter on a search form. `REVIEW_CHECKLIST.md` C8 covers callers outside the diff.
+- `agents/reviewer.md`: `model: opus`. Bash runs only the two scripts and reads.
+- `fix-bug.md` step 8 runs each `gate:` command.
+- New `scripts/review_packages.py`: `split` cuts a diff of more than 10 files into packages of at most 15, one folder per package when it fits, one reviewer per package. `merge` joins the package reports without judgement: the worst verdict, every finding, summed counts, the union of rules read. On JTEK commit `7d23c85f6`, 24 files gave 2 packages (14 and 10).
+- New `scripts/review_record.py`: `save` keeps the report and the reviewed sha in `.fe-kit/reviews/<branch>.md`. `last` prints that sha and each old finding, so the next review reads `<sha>..HEAD` and checks each old finding again. `review-diff.md` step 4 reports an old finding that still holds.
+- `review_check.py`: `sections()` and `label_value()` are public, because `review_packages.py` and `review_record.py` call them.
+- One copy per rule. `SKILL.md` lost the Hard Rule and the Common Mistakes row that repeated `rules/review-diff.md`, and its edit-gate paragraph that repeated `rules/fe-implementation.md`. The four authoring playbooks replace their gate paragraph with one line that names the labels and points at `rules/fe-implementation.md`. New `scripts/test_rule_copies.py` fails when a sentence of 8 or more words from `rules/*.md` appears in a skill file, or one from `SKILL.md` appears in a playbook. `CHANGELOG.md` and `evals/` are not checked, because they quote old rules as history.
+- `scripts/bash_target.py` is unchanged. Running a test suite (`node --test extensions/fe-gate.test.ts`, `python3 scripts/test_fe_gate.py`) is still gated as a frontend write, because the gate reads script text and cannot tell test data from a real write. Three fixes that read script text more closely each let a real write through, as three independent reviews showed. The fix that measures the change instead (which frontend files a Bash command changed) is planned for 1.24.0. Until then, declare the labels with one `echo` before a test run.
+- `scripts/yaml_subset.py`: an error for an unquoted value names the quoted value to write, as in `write "**/x.ts"`.
+- Version 1.23.0 in `plugin.json`, `package.json`, and both places in `marketplace.json`. New `scripts/test_versions.py` fails when one differs, or when the first CHANGELOG heading differs.
+- An independent review before commit found 12 defects in the new scripts; each fix has a test that fails on the code before it:
+  - `project_config.py` refused `--files` with `--diff`, so a package reviewer dropped every project rule. The three CLIs now share `add_source_arguments()` and `files_from_args()`; `--files` with `--diff` keeps one package of the range;
+  - `project_config.py` lists paths with `git -c core.quotepath=off` and `diff --relative`, so a non-ASCII name and a sub-folder root match their globs; a path on another drive exits 2 with a message; `.fe-kit/reviews/**` is never a file to review;
+  - `review_record.py save` recorded the parent of the reviewed work. It now refuses while files are not committed (`--allow-dirty` to force). Branch names are percent-encoded, so `feat/x` and `feat-x` keep separate records; a detached HEAD asks for `--branch`;
+  - `review_check.py` crashed on a line of a deleted file (now a `!` warning), warned on old-system and CR quotes (`legacy.source` and the `legacy.cr` folder are now known roots), and let one bare file name cover two diff files;
+  - `review_packages.py split --max 0` looped forever;
+  - `yaml_subset.py` read `tRUE`, `NuLL`, `0777`, and `[src/{x,y}/**]` differently from PyYAML, and its tab check never ran;
+  - `review-diff.md` step 1 now reads untracked files too, and passes the package `--files` to the project rules command.
+- A second independent review found 7 more defects, fixed with tests:
+  - a re-review after `save` used `<sha>..HEAD`, which misses uncommitted work. `--diff <sha>` with no `..` now compares that sha with the working tree, new files included, and SKILL.md passes it;
+  - `review_check.py` rejected a citation of a built-in preset rule (`presets/legacy-rewrite/review.md:8`). A cited path now also resolves against each `read:` file;
+  - `project_config.py` printed no file list, so the reviewer could not see untracked files. Each file to review now has a `file:` line;
+  - `legacy.source: dev` or `./dev/` was not a known folder; config folders are normalized;
+  - `review_record.py save` on a sub-folder root counted its own record and files outside the root as uncommitted;
+  - the `yaml_subset.py` docstring claimed full agreement with PyYAML; it now names the types that differ (floats, dates, hex);
+  - SKILL.md now says to pass `--branch` on a detached HEAD.
+- A third independent review found 3 more, fixed with tests:
+  - `review_check.py` split a covered file name at a space, so `sp ace.ts` could never be covered; names are now matched whole, so `OrderForm.ts` also no longer covers `OrderForm.tsx`;
+  - a renamed file was listed only under its new name, so a citation of the old name failed. `git diff --no-renames` lists both; a name with no file on disk is not required in `Độ phủ`;
+  - SKILL.md said the next review reads only commits; it reads the working tree too.
+- Tests: `scripts/test_fe_gate.py` runs 191 cases (4 new). New `test_yaml_subset.py` (52, compared with PyYAML when installed), `test_project_config.py` (53), `test_review_check.py` (25), `test_review_packages.py` (19), `test_review_record.py` (15), `test_rule_copies.py`, `test_versions.py` (5). Each new suite failed on a negative control. `evals.json` has 3 new evals (21–23).
+- JTEK pilot: a `.fe-kit/config.yaml` that mirrors the FE part of `workflow/lenses/paths.yaml`. On commits `7d23c85f6`, `14bc719f7`, and `c9e8b60be`, `project_config.py` printed the same FE files, rule files, and lenses as `bin/ai/review-scope <sha> --side fe`, plus `CARD.md`. A `fe-kit:reviewer` run on `14bc719f7` with the new playbook read 14 rule files, preset included, and reported two findings that quote `tvmk_admin/rules/6-forms.md:20` and `:32`. The 1.22.0 reviewer reads neither file. Its first `review_check.py` run gave 2 `!` warnings, and the second run exited 0 after it removed those references.
+
+## 1.22.0
+
+The gate read labels from two sources: the `echo` declaration and the reply text in the transcript. The host can write the reply text after the PreToolUse hook reads the transcript, so the same labels could pass or fail. The deny message also gave two paths: it started with the `echo` command, then asked for reply-text lines in ten more sentences.
+
+- `scripts/fe-gate.py`: new `declared_only()`. When the payload has `session_id`, labels that Claude writes count only from an `echo` declaration. Text the user typed and a compact summary still count. A payload with no `session_id` keeps the reply-text path.
+- With `session_id`, a deny does not wait for a late transcript write.
+- `decisions_found()` reads the declared labels also when the payload has no `transcript_path`.
+- The deny message has one path: the `echo` command, the missing labels, and one sentence that says the reply text does not count.
+- `rules/fe-implementation.md`, `skills/fe-kit/SKILL.md`, the playbooks, `README.md`, and `CODEMAP.md` say that the gate does not read reply-text labels.
+- Tests: `scripts/test_fe_gate.py` runs 187 cases (9 new, 7 of them fail on 1.21.1). `extensions/fe-gate.test.ts` runs 30 cases (1 new).
+
 ## 1.21.1
 
 The gate read every user entry as a new request, also the entries the host writes: a `<task-notification>` when a background task or a subagent ends, and `/export` with its `<local-command-stdout>`. Each one dropped the labels of the current request. In a DA1020 session the reviewer notification came in while the agent worked, and the edit after it was denied.

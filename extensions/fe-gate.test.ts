@@ -144,6 +144,17 @@ test("allows a gated edit after an echo declaration in the same session", async 
   assert.match(other.reason, /^Blocked\. Run this Bash command/);
 });
 
+test("with a session id, reply-text labels do not open a gated edit", async () => {
+  const entries = [
+    { type: "message", message: { role: "user", content: "add a checkout button" } },
+    { type: "message", message: { role: "assistant", content: [{ type: "text", text: "Runtime owner: X.tsx\nDecision: reuse" }] } },
+  ];
+  const ctx = { cwd: root, sessionManager: { getEntries: () => entries, getSessionId: () => "omp-reply" } };
+  const denial = readDenial(await handlerFor("tool_call")(editEvent("src/X.tsx", ...codeChange), ctx));
+  assert.ok(denial, "reply-text labels must not count when the session has an id");
+  assert.match(denial.reason, /Labels in the reply text, in thinking, or in prose do not count/);
+});
+
 test("leaves a bash tool result alone", async () => {
   const event = { type: "tool_result", toolName: "bash", input: { command: "sed -i 's/a/b/' src/X.tsx" }, content: [] };
   assert.equal(await handlerFor("tool_result")(event, makeCtx([])), undefined);

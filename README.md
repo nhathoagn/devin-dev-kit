@@ -1,6 +1,6 @@
 # fe-kit
 
-![version](https://img.shields.io/badge/version-1.21.1-blue)
+![version](https://img.shields.io/badge/version-1.22.0-blue)
 ![hosts](https://img.shields.io/badge/hosts-Claude%20Code%20%7C%20omp-6e56cf)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -38,8 +38,8 @@ echo "Runtime owner: OrderForm" "Decision: reuse"   "Trigger: đơn tạo lúc 2
 ```
 
 Gate đọc nhãn từ chính lệnh Bash đó và lưu theo session và request. Sửa lần này đi qua.
-Nhãn viết trên từng dòng trong reply text vẫn được tính. Nhãn trong thinking thì không,
-vì transcript không giữ nội dung thinking.
+Gate không đọc nhãn trong reply text hay thinking, vì hook có thể đọc transcript trước khi host ghi xong.
+Nhãn người dùng gõ trong yêu cầu vẫn được tính. Payload không có session id thì nhãn trong reply text vẫn được tính.
 
 ---
 
@@ -145,6 +145,63 @@ Cả hai dùng chung `scripts/fe-gate.sh` → `scripts/fe-gate.py`. Một chỗ 
 
 ---
 
+## Luật riêng của dự án
+
+fe-kit giữ luật chung cho mọi dự án React. Luật riêng của một dự án nằm trong repo của dự án đó.
+`scripts/project_config.py` nhận danh sách file thay đổi và in ra file luật nào phải đọc.
+
+File `.fe-kit/config.yaml` **không bắt buộc**. Chỉ viết khi cách tìm mặc định không đủ.
+
+| Dự án | Cần làm | fe-kit đọc |
+|---|---|---|
+| Không có luật FE riêng | Không làm gì | Chỉ luật của fe-kit |
+| Luật ở `AGENTS.md`, `CLAUDE.md`, thư mục `rules/` gần code, hoặc `REVIEW_CHECKLIST.md` ở root | Không làm gì | Tự tìm: root, rồi từng thư mục cha của file thay đổi |
+| Cần map luật theo đường dẫn, thư mục spec riêng, lệnh cổng, file loại trừ, preset | Viết `.fe-kit/config.yaml` | Đúng file đã khai |
+
+Config tối thiểu:
+
+```yaml
+rules:
+  - glob: "src/**"
+    read: [docs/frontend-rules.md]
+gate: ["pnpm typecheck", "pnpm lint"]
+```
+
+Config đầy đủ:
+
+```yaml
+version: 1
+presets: [legacy-rewrite]          # hoặc ./tools/fe-preset (thư mục trong repo)
+always_read: [web/rules/CARD.md]
+rules:                             # mọi glob khớp đều cộng file
+  - glob: "web/src/{pages,routes}/**"
+    read: [web/rules/forms.md, web/rules/layout.md]
+spec_dirs: [works/design]          # mặc định: docs specs .scratch
+gate: ["npm --prefix web run typecheck"]
+exclude: ["web/src/routeTree.gen.ts", "**/package-lock.json"]
+legacy:                            # preset legacy-rewrite đọc
+  source: dev/
+  cr: "works/screens/{SID}.yaml"
+```
+
+Thử: `python3 scripts/project_config.py --root <repo> --files src/a.tsx` (hoặc `--diff BASE..HEAD`, `--staged`).
+
+YAML được đọc bằng `scripts/yaml_subset.py`, chỉ thư viện chuẩn: mapping, list, list trên một dòng `[a, b]`,
+chuỗi có nháy, `#` comment. Giá trị bắt đầu bằng `*`, `&`, `{`, `|`, `>` phải đặt trong nháy, như YAML thật:
+glob `**/x` viết là `"**/x"`. Cú pháp ngoài tập con này báo lỗi kèm số dòng, exit 2.
+
+Preset là thư mục có `design.md` (đọc trước khi viết code) và `review.md` (đọc khi review).
+Có sẵn `presets/legacy-rewrite/` cho dự án viết lại hệ cũ: giống hệ cũ và không có CR thì không phải lỗi.
+
+Sau review, `scripts/review_check.py` kiểm report: câu verdict, mức của từng lỗi, `file:dòng` có thật,
+và mục `Nguồn và độ phủ` nêu đủ file trong diff.
+
+Diff trên 10 file: `scripts/review_packages.py split` chia gói (tối đa 15 file), mỗi gói một reviewer chạy song song,
+rồi `review_packages.py merge` gộp report. Review lại: `scripts/review_record.py save` lưu report và sha vào
+`.fe-kit/reviews/<branch>.md`; lần sau `review_record.py last` cho sha đó, reviewer chỉ đọc phần đổi và kiểm lại lỗi cũ.
+
+---
+
 ## Cài
 
 **Claude Code**
@@ -186,6 +243,12 @@ omp plugin link .
 hooks/hooks.json         hook cho Claude Code
 scripts/fe-gate.sh|py    gate dùng chung hai host
 scripts/wording.py       lexer JS/TS/JSX + token diff cho wording/style
+scripts/project_config.py  file thay đổi → luật dự án cần đọc (.fe-kit/config.yaml hoặc tự tìm)
+scripts/review_check.py  kiểm report review-diff trước khi gửi
+scripts/review_packages.py  chia diff lớn thành gói, gộp report các gói
+scripts/review_record.py lưu review theo nhánh, đọc lại cho lần sau
+scripts/yaml_subset.py   đọc tập con YAML, không cần pyyaml
+presets/                 luật theo loại dự án (legacy-rewrite)
 extensions/fe-gate.ts    adapter omp + test
 skills/fe-kit/           SKILL.md, 6 playbook, references, evals
 skills/ui-image-check/   so ảnh với code
@@ -203,7 +266,7 @@ CODEMAP.md               bản đồ code: module nào gọi module nào
 |---|---|
 | [`skills/fe-kit/SKILL.md`](skills/fe-kit/SKILL.md) | Workflow, 6 field, hard rule |
 | [`skills/fe-kit/playbooks/`](skills/fe-kit/playbooks/) | Từng loại việc một file |
-| [`skills/fe-kit/references/`](skills/fe-kit/references/) | Ownership, reuse, performance, audit, checklist F1–F22 |
+| [`skills/fe-kit/references/`](skills/fe-kit/references/) | Ownership, reuse, performance, audit, checklist F1–F23 |
 | [`rules/`](rules/) | 5 rule luôn bật, kèm ví dụ |
 | [`CODEMAP.md`](CODEMAP.md) | Bản đồ kiến trúc plugin, ai gọi ai |
 | [`skills/fe-kit/CHANGELOG.md`](skills/fe-kit/CHANGELOG.md) | Vì sao mỗi rule tồn tại — kèm sự cố thật |

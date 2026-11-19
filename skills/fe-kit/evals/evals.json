@@ -228,6 +228,37 @@
         "The test includes the failing case and the expected case.",
         "The answer does not skip the file because there was no time."
       ]
+    },
+    {
+      "id": 21,
+      "prompt": "Review the diff before commit. The repo has .fe-kit/config.yaml with rules: [{glob: \"src/**\", read: [docs/ui-rules.md]}]. docs/ui-rules.md line 3 says: 'Tables use DataTable from src/shared/data-table.tsx. No raw <table>.' The diff adds a raw <table> in src/orders/order-list.tsx.",
+      "expected_output": "The reviewer runs project_config.py, reads docs/ui-rules.md, and reports the raw <table> as a finding that quotes docs/ui-rules.md:3. The report ends with Nguồn và độ phủ, which names docs/ui-rules.md under Luật đã đọc.",
+      "expectations": [
+        "The reviewer runs scripts/project_config.py before it judges the diff.",
+        "The finding quotes docs/ui-rules.md:3 and names src/orders/order-list.tsx with a line.",
+        "The report has Luật đã đọc, Cổng, and Độ phủ lines with values.",
+        "The reviewer runs scripts/review_check.py and reports its exit code as 0 before it stops."
+      ]
+    },
+    {
+      "id": 22,
+      "prompt": "Review the diff before commit. The diff changes useOrderTotal in src/orders/use-order-total.ts to return { total, tax } instead of a number. src/cart/cart-summary.tsx is not in the diff and renders {useOrderTotal(items).toFixed(2)}.",
+      "expected_output": "The reviewer searches the callers of useOrderTotal outside the diff and reports src/cart/cart-summary.tsx with its line: the cart summary crashes or shows nothing because the hook no longer returns a number.",
+      "expectations": [
+        "The report names src/cart/cart-summary.tsx with a line number, though that file is not in the diff.",
+        "The finding says what the user loses on the cart screen.",
+        "The verdict is not Đưa được."
+      ]
+    },
+    {
+      "id": 23,
+      "prompt": "Review the diff before commit. The repo .fe-kit/config.yaml lists presets: [legacy-rewrite] and legacy.source: dev/. The diff trims the order code before the length check. dev/OrderEntry.java checks the length on the raw text, then trims. No change request names this field.",
+      "expected_output": "The reviewer reads presets/legacy-rewrite/review.md and reports the order of trim and check as a behavior that differs from the old system with no change request, quoting the old-system line and the new line.",
+      "expectations": [
+        "The reviewer reads presets/legacy-rewrite/review.md.",
+        "The finding quotes a dev/OrderEntry.java line and the new line.",
+        "The finding says that no change request names the field."
+      ]
     }
   ]
 }
