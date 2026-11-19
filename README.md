@@ -1,6 +1,6 @@
 # fe-kit
 
-![version](https://img.shields.io/badge/version-1.21.1-blue)
+![version](https://img.shields.io/badge/version-1.22.0-blue)
 ![hosts](https://img.shields.io/badge/hosts-Claude%20Code%20%7C%20omp-6e56cf)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -38,8 +38,8 @@ echo "Runtime owner: OrderForm" "Decision: reuse"   "Trigger: đơn tạo lúc 2
 ```
 
 Gate đọc nhãn từ chính lệnh Bash đó và lưu theo session và request. Sửa lần này đi qua.
-Nhãn viết trên từng dòng trong reply text vẫn được tính. Nhãn trong thinking thì không,
-vì transcript không giữ nội dung thinking.
+Gate không đọc nhãn trong reply text hay thinking, vì hook có thể đọc transcript trước khi host ghi xong.
+Nhãn người dùng gõ trong yêu cầu vẫn được tính. Payload không có session id thì nhãn trong reply text vẫn được tính.
 
 ---
 

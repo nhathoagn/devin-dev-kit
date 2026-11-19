@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.22.0
+
+The gate read labels from two sources: the `echo` declaration and the reply text in the transcript. The host can write the reply text after the PreToolUse hook reads the transcript, so the same labels could pass or fail. The deny message also gave two paths: it started with the `echo` command, then asked for reply-text lines in ten more sentences.
+
+- `scripts/fe-gate.py`: new `declared_only()`. When the payload has `session_id`, labels that Claude writes count only from an `echo` declaration. Text the user typed and a compact summary still count. A payload with no `session_id` keeps the reply-text path.
+- With `session_id`, a deny does not wait for a late transcript write.
+- `decisions_found()` reads the declared labels also when the payload has no `transcript_path`.
+- The deny message has one path: the `echo` command, the missing labels, and one sentence that says the reply text does not count.
+- `rules/fe-implementation.md`, `skills/fe-kit/SKILL.md`, the playbooks, `README.md`, and `CODEMAP.md` say that the gate does not read reply-text labels.
+- Tests: `scripts/test_fe_gate.py` runs 187 cases (9 new, 7 of them fail on 1.21.1). `extensions/fe-gate.test.ts` runs 30 cases (1 new).
+
 ## 1.21.1
 
 The gate read every user entry as a new request, also the entries the host writes: a `<task-notification>` when a background task or a subagent ends, and `/export` with its `<local-command-stdout>`. Each one dropped the labels of the current request. In a DA1020 session the reviewer notification came in while the agent worked, and the edit after it was denied.

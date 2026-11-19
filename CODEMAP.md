@@ -54,7 +54,7 @@ plugin-architecture
 
 ```text
 prompt vào ──► UserPromptSubmit ──► fe-gate.py: nhận diện intent → bơm rule tương ứng
-ghi file ────► PreToolUse       ──► fe-gate.py: conflict_edit? → qua; gate_open? → thiếu nhãn thì DENY, mở đầu bằng lệnh `echo` mẫu; agent chạy lệnh đó hoặc viết nhãn vào reply text (Bash ghi file frontend cũng bị gate như Write)
+ghi file ────► PreToolUse       ──► fe-gate.py: conflict_edit? → qua; gate_open? → thiếu nhãn thì DENY, mở đầu bằng lệnh `echo` mẫu; agent chạy lệnh đó; có session id thì nhãn trong reply text không được tính (Bash ghi file frontend cũng bị gate như Write)
 ghi xong ────► PostToolUse      ──► fe-gate.py: conflict marker còn? rules.sh fail? → exit 2
 compact      ──► SessionStart / PreCompact ──► fe-gate.py: transcript còn frontend work? → bơm lại rule
 ```

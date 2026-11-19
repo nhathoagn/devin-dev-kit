@@ -332,7 +332,7 @@ def run_special():
     # The deny message says that prose, a thinking summary, and labels of an earlier request do not count.
     prose = write_transcript("prose.jsonl", chat("đổi đi", T("Chủ sở hữu là AuthenticatedLayout.")))
     out = call_gate(dict(base, transcript_path=prose))
-    check("deny explains prose and earlier labels", "allow" if "does not count" in out and "before the latest user message" in out else "deny", "allow")
+    check("deny explains prose and earlier labels", "allow" if "prose, and a table row do not count" in out and "before the latest user message" in out else "deny", "allow")
     bash = dict(base, transcript_path=prose, tool_name="Bash", tool_input={"command": "sed -i 's/a/b/' src/A.tsx"})
     check("bash deny names the Bash route", "allow" if "Bash command that writes a frontend file" in call_gate(bash) else "deny", "allow")
 
@@ -450,6 +450,39 @@ def run_special():
           decision(call_gate(dict(base, transcript_path=second, session_id="omp-s1"))), "allow")
     check("another session id does not see it",
           decision(call_gate(dict(base, transcript_path=second, session_id="omp-s2"))), "deny")
+
+    # With a session id, Claude's labels count only from a declaration. Text the user typed still counts.
+    def sess_edit(name, entries, session="cc-1", transcript=True):
+        payload = dict(base, session_id=session)
+        payload["transcript_path"] = write_transcript(name, entries) if transcript else ""
+        return decision(call_gate(payload))
+    check("session: reply-text labels do not count", sess_edit("s-reply.jsonl", chat("thêm cột", T(OK))), "deny")
+    check("session: thinking labels do not count", sess_edit("s-think.jsonl", chat("thêm cột", THINK(OK))), "deny")
+    check("session: subagent reply-text labels do not count",
+          decision(call_gate(dict(base, agent_id="abc", session_id="cc-sub"))), "deny")
+    check("session: labels the user typed count", sess_edit("s-user.jsonl", [U(OK + "thêm cột"), A(T("ok"))]), "allow")
+    bug_s = write_transcript("s-bug2.jsonl", [U("tổng sai khi bấm Lưu\nTrigger: bấm Lưu\nExpected: 10\nActual: 0")])
+    call_gate(dict(base, transcript_path=bug_s, session_id="cc-bug", tool_name="Bash",
+                   tool_input={"command": 'echo "Runtime owner: Da1020Form" "Decision: extend"'}))
+    check("session: bug repro typed by the user plus an echo declaration",
+          decision(call_gate(dict(base, transcript_path=bug_s, session_id="cc-bug"))), "allow")
+    echo_s = write_transcript("s-echo.jsonl", [U("thêm cột vào DA1020"), A(T(OK))])
+    call_gate(dict(base, transcript_path=echo_s, session_id="cc-echo", tool_name="Bash",
+                   tool_input={"command": 'echo "Runtime owner: Da1020Columns" "Decision: reuse"'}))
+    check("session: echo declaration counts", decision(call_gate(dict(base, transcript_path=echo_s, session_id="cc-echo"))), "allow")
+    call_gate(dict(base, transcript_path="", session_id="cc-none", tool_name="Bash",
+                   tool_input={"command": 'echo "Runtime owner: Da1020Columns" "Decision: reuse"'}))
+    check("session: echo declaration counts with no transcript path",
+          sess_edit("unused.jsonl", [], session="cc-none", transcript=False), "allow")
+    started = time.time()
+    call_gate(dict(base, transcript_path=write_transcript("s-slow.jsonl", [U("thêm cột")]), session_id="cc-slow"), env=slow_env)
+    check("session: a deny does not wait for a late transcript write",
+          "allow" if time.time() - started < 2 else "deny", "allow")
+    sess_out = call_gate(dict(base, transcript_path=write_transcript("s-msg.jsonl", [U("thêm cột")]), session_id="cc-msg"))
+    sess_reason = json.loads(sess_out)["hookSpecificOutput"]["permissionDecisionReason"]
+    check("session: deny says reply text does not count and offers no reply-text path",
+          "allow" if "Labels in the reply text, in thinking, or in prose do not count" in sess_reason
+          and "also counts" not in sess_reason else "deny", "allow")
 
     lead = call_gate(dict(base, transcript_path=write_transcript("lead.jsonl", [U("thêm cột")])))
     reason = json.loads(lead)["hookSpecificOutput"]["permissionDecisionReason"]

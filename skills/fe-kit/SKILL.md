@@ -104,7 +104,7 @@ Before finishing:
 
 Use this structure. Fill every section. Do not leave sections blank.
 
-The edit gate checks `Runtime owner:` and `Decision:`, each with a value after the colon. Declare them before the first edit with one Bash command, as in `echo "Runtime owner: OrderForm" "Decision: reuse"`, or write each one on its own line in the reply text. A table row or a thinking block does not count.
+The edit gate checks `Runtime owner:` and `Decision:`, each with a value after the colon. Declare them before the first edit with one Bash command, as in `echo "Runtime owner: OrderForm" "Decision: reuse"`. The gate does not read labels in the reply text, in thinking, or in a table row. Labels the user typed in the request still count.
 
 A screen review uses the Vietnamese template in `playbooks/review-ui.md` and then stops. A diff review is not written by the author. The fresh reviewer uses the template in `playbooks/review-diff.md` and then stops. Do not also fill the template below.
 ```md
@@ -171,7 +171,7 @@ Files in scope:
 - Before adding or changing code, follow `rules/reuse-duplication.md`.
 - A different job goes in a new file, per `rules/modules.md`. Do not grow a file that already has one job.
 - A review's only user-facing output is the Vietnamese report in `playbooks/review-ui.md`, or the diff report in `playbooks/review-diff.md` when a fresh reviewer writes it. Kết luận is first for a screen review. The diff report's Verdict is first for a diff. Then stop. Do not fill the template below. Do not re-read the tree to rewrite the report.
-- Do not write implementation code until the Architecture and Reuse Decision sections are filled. Fill them in the reply text, not only in thinking, because thinking is not always saved for the edit hook. A review records the reuse decision under Dùng lại, and a wrong owner under Việc nên làm, instead of those sections.
+- Do not write implementation code until the Architecture and Reuse Decision sections are filled. Fill them in the reply text for the reader. The edit hook reads only the `echo` declaration. A review records the reuse decision under Dùng lại, and a wrong owner under Việc nên làm, instead of those sections.
 - Do not grade a frontend diff you wrote. Hand it to `fe-kit:reviewer` or a fresh context that reads `playbooks/review-diff.md`. A behaviorless wording or style change skips this.
 - Never invent a new shared component or hook just because it might be useful later.
 - Never bypass a project wrapper to use the lower-level primitive it owns.
