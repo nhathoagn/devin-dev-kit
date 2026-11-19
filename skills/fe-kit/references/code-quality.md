@@ -85,7 +85,7 @@ Searches for the Names row (run each one on the scope, and name it in the row):
 
 ## Helpers
 
-- Do not add a helper that is called once or that wraps one line. Write it inline at its one use, and keep the comment that explains the rule.
+- Do not add a helper that is called once or that wraps one line. Write it inline at its one use, and keep a comment only if it satisfies `rules/comments.md`.
 - Keep a helper when it is called many times, or when it names a business rule (a rounding rule, a legacy format).
 - A validation check is not that exception. If the project already has a validator (a schema, a resolver, a shared field rule), add the case there. Do not add a helper that filters fields, calls `safeParse`, or wraps `min`, `trim`, or `startsWith`.
 - Before you write a formatter or a reader, search the repo for one. Check its contract before you reuse it: a form-bound field needs a form context; a grid cell formatter may change dates.
@@ -202,7 +202,7 @@ Field updates
 - Group a rules file by data (order, item, customer), not by screen. A `// <screen id>` heading in a shared rules file is a finding.
 - A length limit of one input is not a validation rule. Keep it with the screen's other max lengths.
 - A declared rule, message key, schema field, or SQL file that nothing uses is a finding: use it or delete it. When you replace a message key, check that the old key still has a caller.
-- Delete a comment that repeats the code or says nothing. A doc comment sits on the symbol it describes.
+- Comments follow `rules/comments.md`: remove narration, banners, commented-out code, workaround justifications, and correctness or safety suppressions; encode our-code constraints as types, checks, tests, or lints.
 
 ## Make it shorter
 

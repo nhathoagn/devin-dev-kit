@@ -121,13 +121,14 @@ kèm `Theo code (chưa chạy)`. Sinh file bằng `skills/ut-report/scripts/buil
 
 ---
 
-## Năm rule luôn bật
+## Sáu rule luôn bật
 
 | Rule | Chặn cái gì |
 |---|---|
 | `fe-implementation.md` | Định nghĩa wording/style theo hành vi; thứ tự search trước khi viết hàm mới |
 | `reuse-duplication.md` | Cùng statements viết hai lần; bug fix thêm holder thứ hai cho giá trị đã có |
 | `modules.md` | Hai job trong một file; folder theo loại file thay vì theo feature |
+| `comments.md` | Comment lặp code, banner, giải thích workaround, suppression che lỗi correctness/safety; ép encode ràng buộc bằng type/check/test/lint |
 | `conflict-fix.md` | Resolve conflict bằng hai block dán cạnh nhau, hoặc mất một phía |
 | `review-diff.md` | Tác giả chấm diff của chính mình |
 

@@ -358,6 +358,11 @@ def run_special():
     check("sửa copy injects no reuse bundle", reuse_injected("sửa copy màn chi tiết"), "deny")
     check("đổi text injects nothing", reuse_injected("đổi text nút Lưu"), "deny")
     check("sửa lỗi chính tả injects no bug rules", injects("sửa lỗi chính tả"), "deny")
+    def comments_injected(prompt):
+        out = call_gate({"hook_event_name": "UserPromptSubmit", "prompt": prompt, "cwd": TMP})
+        return "allow" if "Default to deleting comments" in out else "deny"
+    check("frontend prompt injects comments rule", comments_injected("thêm component OrderForm"), "allow")
+    check("sửa text injects no comments rule", comments_injected("sửa text nút Lưu"), "deny")
 
     # A repo with .fe-kit/config.yaml gets the project rules command; every review gets the command.
     with_config = os.path.join(TMP, "with-config")

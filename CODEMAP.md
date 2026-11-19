@@ -42,6 +42,7 @@ plugin-architecture
 │   ├── fe-implementation.md quy trình edit: quyết định trước, code sau
 │   ├── reuse-duplication.md tái sử dụng implementation có sẵn, cấm viết trùng
 │   ├── modules.md           một việc một file; file dài không tự nhiên là lý do chia
+│   ├── comments.md          xóa comment thừa/workaround/suppression che lỗi; chỉ giữ ngoại lệ có bằng chứng; encode ràng buộc thay vì văn xuôi
 │   ├── conflict-fix.md      cách xử lý conflict marker
 │   └── review-diff.md       luật review diff, luôn áp trên omp
 ├── presets/
@@ -94,7 +95,7 @@ Ma trận nạp ở `:611`:
 | Event | Điều kiện | Nạp |
 |---|---|---|
 | UserPromptSubmit | `prompt_hit` hoặc `bug_hit` | `rules/fe-implementation.md` |
-| | `(prompt\|reuse\|author\|bug)` và không phải wording-only | `rule_bundle()` = reuse-duplication + modules |
+| | `(prompt\|reuse\|author\|bug)` và không phải wording-only | `rule_bundle()` = reuse-duplication + modules + comments |
 | | `prompt_hit` hoặc `review_hit` | `review_context()` = review-diff + đường dẫn playbook + `Project rules command:` (lệnh `project_config.py --mode review`) |
 | | `prompt_hit` hoặc `bug_hit`, repo có `.fe-kit/config.yaml` | `project_config_context()` = lệnh `project_config.py --mode author` |
 | | `conflict_hit` hoặc repo đang conflict | `rules/conflict-fix.md` |
