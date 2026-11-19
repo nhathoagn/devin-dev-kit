@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.24.0
+
+A refactor finished while the smells it touched were still standing, because no file owned that check. The diff reviewer deliberately scores no structural smells (`playbooks/review-diff.md` excludes them), and `references/audit.md`'s judgement list was advisory severity `low` only — nothing made a touched smell block completion.
+
+- New `references/fowler-checklist.md`: 28 items across Fowler's six refactor groups (F1a–F6c), PASS / FAIL / N/A format matching `REVIEW_CHECKLIST.md`. Covers items no other checklist names: shared mutable constants (`locks = ALL_LOCKS` by-ref vs spreads), non-exhaustive else-if (a red class in mode '1' falls through with stale locks and a negative qty), over-consolidated `||` predicates, confusable adjacent params (`mode`/`displayMode`), shadow `*_keep` fields, `let` temps reassigned across branches, and silent spread-override in return objects.
+- `playbooks/refactor-ui.md` step 7: a refactor that finishes while a Fowler smell it touched still stands is incomplete, not PASS.
+- `references/audit.md`: the judgement-call list narrows to three React-only bullets (`a.b().c()` or `a.b.c` walks, forwarders, ignored-extends). On a refactor task, Fowler scores the touched code and those three bullets still run on untouched audit-scope files (imported hooks/services/schemas). The diff reviewer keeps not scoring them.
+- Borderline verdicts are `FAIL` with "borderline" in the reason — no fourth verdict.
+- Two rounds of 10-agent lens review on `applyShipClassChange` produced the item set; gaps named by the lenses (middle man, refused bequest, record-type move target) are covered.
+- Version 1.24.0 in `plugin.json`, `package.json`, and both places in `marketplace.json`.
+
 ## 1.23.0
 
 The reviewer read project rules only from a root `REVIEW_CHECKLIST.md`. The JTEK repo keeps its FE rules in `tvmk_admin/rules/` and maps them by path in `workflow/lenses/paths.yaml`, so the reviewer read none of them. The spec search looked only in `docs/`, `specs/`, and `.scratch/`, and the repo keeps approved designs in `works/design/`. The reviewer also had no step to search callers outside the diff, no step to drop a wrong finding, and no check of its report. `marketplace.json` stayed at 1.19.0 through 1.22.0, so `/plugin install` could keep an old build.
