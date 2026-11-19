@@ -17,6 +17,10 @@ try:
     import label_store
 except Exception:
     label_store = None
+try:
+    import project_config
+except Exception:
+    project_config = None
 
 # The hook payload is UTF-8. Windows Python decodes stdin as cp1252 by default, which breaks Vietnamese prompts.
 raw = sys.stdin.buffer.read().decode("utf-8", errors="replace").strip()
@@ -585,9 +589,23 @@ def load_rule(filename):
     text = open(path, encoding="utf-8").read()
     return re.sub(r"^---\n.*?\n---\n*", "", text, count=1, flags=re.S).strip()
 
+def project_rules_command(mode):
+    script = os.path.join(plugin_root(), "scripts", "project_config.py").replace("\\", "/")
+    root = (project_root(cwd) or ".").replace("\\", "/")
+    return 'python3 "%s" --root "%s" --mode %s' % (script, root, mode)
+
 def review_context():
     playbook = os.path.join(plugin_root(), "skills", "fe-kit", "playbooks", "review-diff.md")
-    return load_rule("review-diff.md") + "\n\nPlaybook path: " + playbook
+    return (load_rule("review-diff.md") + "\n\nPlaybook path: " + playbook
+            + "\n\nProject rules command: " + project_rules_command("review"))
+
+def project_config_context():
+    # Only a repo that wrote a config gets this line, because the fallback search needs no reminder.
+    if not project_config or not os.path.isfile(os.path.join(project_root(cwd), project_config.CONFIG_PATH)):
+        return ""
+    return ("This repo has %s. Before the first edit, run `%s --files <each file you will change>` "
+            "and read each `read:` line. Use its `gate:` commands to verify."
+            % (project_config.CONFIG_PATH, project_rules_command("author")))
 
 def rule_bundle():
     return load_rule("reuse-duplication.md") + "\n\n" + load_rule("modules.md")
@@ -699,9 +717,13 @@ if name == "SessionStart" and event.get("source") == "compact" and transcript_ha
     bodies.append(load_rule("fe-implementation.md"))
     bodies.append(rule_bundle())
     bodies.append(review_context())
+    if project_config_context():
+        bodies.append(project_config_context())
 elif name == "UserPromptSubmit":
     if prompt_hit or bug_hit:
         bodies.append(load_rule("fe-implementation.md"))
+        if project_config_context():
+            bodies.append(project_config_context())
     if (prompt_hit or reuse_hit or author_hit or bug_hit) and not (wording_hit and not bug_hit):
         bodies.append(rule_bundle())
     if prompt_hit or review_hit:

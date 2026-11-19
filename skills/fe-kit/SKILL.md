@@ -20,7 +20,15 @@ Pick one playbook. Read that file from this skill directory. On omp, use `skill:
 | Waterfall, bundle, rerender, or list jank | `playbooks/perf-ui.md` |
 | Check, review, clean up, or shorten existing UI | `playbooks/review-ui.md` |
 
-If you wrote the diff, do not open `playbooks/review-diff.md`. Hand the diff to agent `fe-kit:reviewer` on Claude Code, or to a fresh omp context whose only task is the diff range and `skill://fe-kit/playbooks/review-diff.md`. Do not include your notes. That reviewer follows the playbook and does not spawn another reviewer. If you were given only the diff and the playbook path, you are that reviewer. If you cannot start the reviewer, stop. Do not write the verdict.
+Before the playbook's first edit, read the project rules. List the files you will create or change (`rules/modules.md`). Run `python3 ../../scripts/project_config.py --root <repo> --mode author --files <those files>` from this skill folder, or the full command the hook context gives. Read each `read:` line. A project rule wins over this skill on a name, a layer, or a pattern. Verify with each `gate:` command. The repo file `.fe-kit/config.yaml` is optional: with no config, the command searches `AGENTS.md`, `CLAUDE.md`, and `rules/` folders. A review playbook does its own project-rules step.
+
+If you wrote the diff, do not open `playbooks/review-diff.md`. Hand the diff to agent `fe-kit:reviewer` on Claude Code, or to a fresh omp context whose only task is the diff range and `skill://fe-kit/playbooks/review-diff.md`. The hand-off holds the diff range, the playbook path, the gate result (each `gate:` command and its exit code, which you run before the hand-off), and the path of a design file a person approved, when one exists. Do not include your notes. That reviewer follows the playbook and does not spawn another reviewer. If you were given only the diff and the playbook path, you are that reviewer. If you cannot start the reviewer, stop. Do not write the verdict.
+
+Two scripts from this skill folder keep the hand-off mechanical:
+
+- Before the hand-off, run `python3 ../../scripts/review_record.py last --root <repo>`. On a detached HEAD, add `--branch <name>`. Exit 2 is a record it cannot read: say so to the user. When it prints a `base:` sha, the hand-off passes `--diff <sha>` with no `..`: that sha against the working tree, new files included, so uncommitted work after the last review is in the range. The hand-off also lists each `finding` line it prints, so the reviewer checks whether each one is fixed.
+- When `python3 ../../scripts/review_packages.py split --root <repo> --diff <range>` prints more than one package, start one reviewer per package in parallel. Each hand-off adds `--files` of its package. More than four packages: ask the user first. Then run `review_packages.py merge --out <file> <package reports>`, run `review_check.py` on the merged report with the whole range, and show it. The merge takes the worst verdict, so you still write no verdict.
+- After the review, commit the reviewed code first. Then run `review_record.py save --root <repo> --report <file>` and commit `.fe-kit/reviews/` on its own. `save` records HEAD, so it refuses while reviewed files are not committed. The next review reads what changed after that HEAD, committed or not, and skips `.fe-kit/reviews/`.
 
 The playbook names the reference files. Do not read a reference it does not name.
 
@@ -104,7 +112,7 @@ Before finishing:
 
 Use this structure. Fill every section. Do not leave sections blank.
 
-The edit gate checks `Runtime owner:` and `Decision:`, each with a value after the colon. Declare them before the first edit with one Bash command, as in `echo "Runtime owner: OrderForm" "Decision: reuse"`. The gate does not read labels in the reply text, in thinking, or in a table row. Labels the user typed in the request still count.
+The edit gate and its label declaration are defined once, in `rules/fe-implementation.md`. Each playbook names the labels it needs. Also fill the sections below in the reply for the reader.
 
 A screen review uses the Vietnamese template in `playbooks/review-ui.md` and then stops. A diff review is not written by the author. The fresh reviewer uses the template in `playbooks/review-diff.md` and then stops. Do not also fill the template below.
 ```md
@@ -172,7 +180,6 @@ Files in scope:
 - A different job goes in a new file, per `rules/modules.md`. Do not grow a file that already has one job.
 - A review's only user-facing output is the Vietnamese report in `playbooks/review-ui.md`, or the diff report in `playbooks/review-diff.md` when a fresh reviewer writes it. Kết luận is first for a screen review. The diff report's Verdict is first for a diff. Then stop. Do not fill the template below. Do not re-read the tree to rewrite the report.
 - Do not write implementation code until the Architecture and Reuse Decision sections are filled. Fill them in the reply text for the reader. The edit hook reads only the `echo` declaration. A review records the reuse decision under Dùng lại, and a wrong owner under Việc nên làm, instead of those sections.
-- Do not grade a frontend diff you wrote. Hand it to `fe-kit:reviewer` or a fresh context that reads `playbooks/review-diff.md`. A behaviorless wording or style change skips this.
 - Never invent a new shared component or hook just because it might be useful later.
 - Never bypass a project wrapper to use the lower-level primitive it owns.
 - Never place code in a layer that does not own the responsibility.
@@ -241,7 +248,6 @@ Files in scope:
 | Second watcher, download path, or error block for one flow | Reuse the first one, or record why it must differ. |
 | Polling every row with no rate estimate | Write rows × polls per minute. Stop polling when the run ends or fails. |
 | "It works" as the review verdict | Say what is wrong, where, what to do, and what it costs if it stays, in the voice of `playbooks/review-ui.md`. |
-| Grade the diff you just wrote | Hand it to `fe-kit:reviewer` or a fresh context. Do not write the verdict. |
 | New behavior woven into the old component, always on | Isolate it in new files behind one flag, default off. One seam in the old file. |
 | Flag read in every leaf component | Read it once at the entry owner. Pass a boolean down. |
 | `if (flag) useNewHook()` | Mount the new component only when on, or pass `enabled: flag`. Never call a hook conditionally. |

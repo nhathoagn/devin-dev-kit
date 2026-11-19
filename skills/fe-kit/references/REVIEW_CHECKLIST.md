@@ -44,7 +44,7 @@ Bản người đọc là `references/review-output.md`. Không đưa mã checkl
 - [ ] **C5** Test await và promise. FAIL nếu fire-and-forget không xử lý. Không có async thì N/A.
 - [ ] **C6** Test race, double-submit, TOCTOU. FAIL nếu có shared state mà không xử lý. Không có shared state thì N/A.
 - [ ] **C7** Test retry có ghi trùng không. FAIL nếu retry không idempotent. Không có retry, job, webhook thì N/A.
-- [ ] **C8** Test invariant của module. FAIL nếu caller gần diff bị gãy. Không có caller thì N/A.
+- [ ] **C8** Test invariant của module. FAIL nếu một caller bị gãy, kể cả caller ngoài diff. Diff đổi chữ ký, giá trị trả về, hoặc hành vi của thứ được export thì tìm mọi nơi gọi trong repo. Không có caller thì N/A.
 - [ ] **D1** Test file mới có đúng layer không. FAIL nếu đặt sai thư mục theo convention repo. Repo không có convention thì N/A.
 - [ ] **D2** Test có dùng helper sẵn không. FAIL nếu viết song song thứ đã có. Không có helper cho việc đó thì N/A.
 - [ ] **D3** Test abstraction chưa cần. FAIL nếu thêm lớp cho tương lai. Không thêm thì PASS.
@@ -119,7 +119,7 @@ Bản người đọc là `references/review-output.md`. Không đưa mã checkl
 
 ## Lỗi riêng của repo (thêm từ feedback reviewer)
 
-Bảng dưới đây trong file skill này để trống. Reviewer không đi hàng trống. Hàng đã điền nằm ở `REVIEW_CHECKLIST.md` tại root repo đang review, nếu file đó có.
+Bảng dưới đây trong file skill này để trống. Reviewer không đi hàng trống. Hàng đã điền nằm ở `REVIEW_CHECKLIST.md` tại root repo đang review, nếu file đó có. Luật riêng khác của repo nằm trong các file mà `scripts/project_config.py` in ở dòng `read:` (bước 1 của `playbooks/review-diff.md`).
 
 | ID | Rule (viết dạng có/không) | Ví dụ sai | Ví dụ đúng | Severity |
 |----|---------------------------|-----------|------------|----------|

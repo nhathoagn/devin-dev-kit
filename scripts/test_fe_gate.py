@@ -359,6 +359,29 @@ def run_special():
     check("đổi text injects nothing", reuse_injected("đổi text nút Lưu"), "deny")
     check("sửa lỗi chính tả injects no bug rules", injects("sửa lỗi chính tả"), "deny")
 
+    # A repo with .fe-kit/config.yaml gets the project rules command; every review gets the command.
+    with_config = os.path.join(TMP, "with-config")
+    os.makedirs(os.path.join(with_config, ".git"), exist_ok=True)
+    os.makedirs(os.path.join(with_config, ".fe-kit"), exist_ok=True)
+    with open(os.path.join(with_config, ".fe-kit", "config.yaml"), "w", encoding="utf-8") as handle:
+        handle.write("rules: []\n")
+    no_config = os.path.join(TMP, "no-config")
+    os.makedirs(os.path.join(no_config, ".git"), exist_ok=True)
+    def prompt_out(prompt, root):
+        env = dict(ENV)
+        env.pop("CLAUDE_PROJECT_DIR", None)
+        return call_gate({"hook_event_name": "UserPromptSubmit", "prompt": prompt, "cwd": root}, env=env)
+    config_out = prompt_out("thêm component OrderForm", with_config)
+    check("config repo: frontend prompt names .fe-kit/config.yaml and --mode author",
+          "allow" if ".fe-kit/config.yaml" in config_out and "--mode author" in config_out else "deny", "allow")
+    check("no-config repo: frontend prompt has no config line",
+          "allow" if ".fe-kit/config.yaml" not in prompt_out("thêm component OrderForm", no_config) else "deny", "allow")
+    check("review prompt always carries the project rules command",
+          "allow" if "Project rules command: python3" in prompt_out("review diff trước commit", no_config)
+          and "project_config.py" in prompt_out("review diff trước commit", no_config) else "deny", "allow")
+    check("wording prompt in a config repo gets no config line",
+          "allow" if ".fe-kit/config.yaml" not in prompt_out("đổi màu nút", with_config) else "deny", "allow")
+
     # An echo declaration is read from the Bash payload, so a thinking block or a late transcript write does not lose it.
     def declare(transcript, command, agent_id=None):
         payload = dict(base, transcript_path=transcript, tool_name="Bash", tool_input={"command": command})

@@ -65,6 +65,8 @@ Write the states of the screen or action before you judge it, for example `idle 
 
 - What starts it, what ends it, and what the user sees.
 - Double submit: can the user start it twice? Name what blocks it.
+- Two tabs or two browsers change the same record: which save wins, and what does the other user see?
+- A search form: pressing Enter does the same as the search button.
 - A late reply: a reply that arrives after the user left or started again. Is it dropped?
 - Reload, back, forward, and a deep link: does each one show the same state? Does the URL hold what must survive a reload?
 - Unmount: timers, polling, and subscriptions stop.

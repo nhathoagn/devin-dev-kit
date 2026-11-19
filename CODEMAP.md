@@ -21,8 +21,20 @@ plugin-architecture
 │   ├── label_store.py       nhãn khai báo bằng một lệnh `echo`/`printf`: đọc từ Bash payload, lưu theo session_id (hoặc transcript) + agent + request
 │   ├── bash_target.py       Bash command → file frontend nó ghi (redirect, tee, cp/mv, sed/perl -i, script writeFileSync/write_text, đọc cả file script, theo cd); thư mục tmp/temp/scratchpad được bỏ qua
 │   ├── wording.py           lexer JS/TS/JSX + token diff: JSX text, text attr, copy call/property, style, comment = wording
+│   ├── project_config.py    file thay đổi → luật dự án cần đọc: .fe-kit/config.yaml (rules, always_read, presets, spec_dirs, gate, exclude, legacy) hoặc tự tìm AGENTS.md/CLAUDE.md/rules/ từ root tới thư mục của file
+│   ├── yaml_subset.py       đọc tập con YAML bằng thư viện chuẩn; cú pháp ngoài tập con → YamlError kèm số dòng
+│   ├── review_check.py      kiểm report review-diff: verdict, mức lỗi, file:dòng có thật, mục Nguồn và độ phủ
+│   ├── review_packages.py   split: diff trên 10 file → gói tối đa 15 file, mỗi gói một reviewer; merge: gộp report các gói (verdict nặng nhất, cộng số lỗi)
+│   ├── review_record.py     save: lưu report + sha vào .fe-kit/reviews/<branch>.md; last: in sha và lỗi cũ cho lần review sau
 │   ├── test_wording.py      78 test lexer/token diff
-│   └── test_fe_gate.py      178 test cho hành vi fe-gate.py
+│   ├── test_fe_gate.py      191 test cho hành vi fe-gate.py
+│   ├── test_yaml_subset.py  52 test, so với pyyaml khi máy có
+│   ├── test_project_config.py  53 test glob, fallback, config, lỗi, preset, git, thư mục con, tên non-ASCII
+│   ├── test_review_check.py 25 test report
+│   ├── test_review_packages.py 19 test split/merge
+│   ├── test_review_record.py 15 test save/last
+│   ├── test_rule_copies.py  một câu luật chỉ nằm ở một file (rules/ → skill, SKILL.md → playbook)
+│   └── test_versions.py     plugin.json = package.json = marketplace.json = CHANGELOG
 ├── extensions/
 │   ├── fe-gate.ts           omp extension (khai báo `omp.extensions` trong package.json): map edit/ast_edit/write/bash sang payload gate (nhận old_string, oldText, oldString, old_str, old, search; edits[]), chặn edit thiếu nhãn qua tool_call, kiểm conflict/rules.sh sau ghi qua tool_result — gọi cùng scripts/fe-gate.sh; ghi verdict cuối (ok/blocked/note/rules) lên status line
 │   └── fe-gate.test.ts      29 case `node --test`, spawn gate thật (Windows: qua `sh`, đường dẫn dấu /)
@@ -32,6 +44,8 @@ plugin-architecture
 │   ├── modules.md           một việc một file; file dài không tự nhiên là lý do chia
 │   ├── conflict-fix.md      cách xử lý conflict marker
 │   └── review-diff.md       luật review diff, luôn áp trên omp
+├── presets/
+│   └── legacy-rewrite/      design.md (câu hỏi trước khi code), review.md (giống hệ cũ, không CR → không phải lỗi)
 ├── agents/
 │   └── reviewer.md          agent review context mới, read-only, không khen
 ├── skills/
@@ -81,7 +95,8 @@ Ma trận nạp ở `:611`:
 |---|---|---|
 | UserPromptSubmit | `prompt_hit` hoặc `bug_hit` | `rules/fe-implementation.md` |
 | | `(prompt\|reuse\|author\|bug)` và không phải wording-only | `rule_bundle()` = reuse-duplication + modules |
-| | `prompt_hit` hoặc `review_hit` | `review_context()` = review-diff + đường dẫn playbook |
+| | `prompt_hit` hoặc `review_hit` | `review_context()` = review-diff + đường dẫn playbook + `Project rules command:` (lệnh `project_config.py --mode review`) |
+| | `prompt_hit` hoặc `bug_hit`, repo có `.fe-kit/config.yaml` | `project_config_context()` = lệnh `project_config.py --mode author` |
 | | `conflict_hit` hoặc repo đang conflict | `rules/conflict-fix.md` |
 | PreToolUse | file `.tsx/.jsx/.vue/.svelte` | `rules/fe-implementation.md` |
 | | file source (ts, py, go…) | `rule_bundle()` |
@@ -124,7 +139,7 @@ tác giả viết diff ──KHÔNG được chấm──► bàn giao
 ├── Claude Code: agent fe-kit:reviewer (agents/reviewer.md)
 │   ├── read-only: Read, Grep, Glob, Bash — không sửa, không commit, không spawn reviewer khác
 │   ├── task PHẢI kèm playbook path, thiếu → dừng, không tự bịa checklist
-│   └── đọc playbooks/review-diff.md → đi REVIEW_CHECKLIST.md + F1..F22
+│   └── đọc playbooks/review-diff.md → chạy project_config.py → đi REVIEW_CHECKLIST.md + F1..F23 + luật dự án → grep caller → lọc lại → review_check.py
 └── omp: context mới, duy nhất nhiệm vụ = diff range + skill://fe-kit/playbooks/review-diff.md
     └── không mang ghi chú của tác giả
 Báo cáo: Verdict đứng đầu, mỗi miss là 1 câu, xong rồi dừng.
@@ -134,7 +149,14 @@ Báo cáo: Verdict đứng đầu, mỗi miss là 1 câu, xong rồi dừng.
 
 ```text
 python3 scripts/test_wording.py          78 test lexer/token diff (copy vs code)
-python3 scripts/test_fe_gate.py          178 test hành vi gate (deny/allow, intent, conflict, file type, Bash ghi file, nhãn khai báo)
+python3 scripts/test_fe_gate.py          191 test hành vi gate (deny/allow, intent, conflict, file type, Bash ghi file, nhãn khai báo, dòng project rules)
+python3 scripts/test_yaml_subset.py      52 test tập con YAML
+python3 scripts/test_project_config.py   53 test luật dự án
+python3 scripts/test_review_check.py     25 test kiểm report
+python3 scripts/test_review_packages.py  19 test chia gói, gộp report
+python3 scripts/test_review_record.py    15 test lưu, đọc review cũ
+python3 scripts/test_rule_copies.py      không câu luật nào bị chép sang file khác
+python3 scripts/test_versions.py         version giống nhau ở mọi manifest + CHANGELOG
 node --test extensions/fe-gate.test.ts   29 test extension omp: verdict, prompt, chặn edit, wording
 cat skills/fe-kit/evals/triggers.json    16 query mẫu: should_trigger true/false — kiểm intent regex
 sh scripts/fe-gate.sh < event.json        chạy thật 1 event với payload giả

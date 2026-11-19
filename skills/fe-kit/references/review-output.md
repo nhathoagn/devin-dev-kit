@@ -55,3 +55,17 @@ Chỉ ghi thứ cố ý không sửa, và vì sao. Bỏ mục này nếu không 
 ## Tóm tắt
 
 Việc chặn đưa lên: 1. Việc nên sửa trong lượt này: 0. Việc có thể để sau: 0.
+
+## Nguồn và độ phủ
+
+Luôn có ba dòng này, mỗi dòng có giá trị. `scripts/review_check.py` kiểm ba dòng này.
+
+Luật đã đọc: mỗi file ở dòng `read:` của `project_config.py`, hoặc `không có luật dự án`.
+Cổng: lệnh và exit code mà task gửi, ví dụ `npm run typecheck exit 0`, hoặc `chưa chạy (task không gửi kết quả)`.
+Độ phủ: mỗi file trong diff đã soi, hoặc thư mục kết thúc bằng `/`. File bỏ qua thì ghi lý do trong ngoặc. File ở dòng `skip:` không cần ghi.
+
+Ví dụ:
+
+Luật đã đọc: `web/rules/6-forms.md`, `presets/legacy-rewrite/review.md`
+Cổng: `npm run typecheck exit 0` · `npm run lint exit 0`
+Độ phủ: `src/order/` ✔ · `src/lib/price.ts` ✔
