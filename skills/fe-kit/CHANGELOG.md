@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.25.0
+
+On Windows, every `hooks.json` command failed with `bash: -c: line 1: unexpected EOF while looking for matching '"'` and the runtime blocked each prompt and tool call. A hook runner spawns `sh -c '<command>'` through Git Bash (MSYS2). MSYS2 converts a `-c` argument that looks like a Windows or POSIX path, and the conversion drops the closing double quote, so bash sees an unterminated string. `MSYS2_ARG_CONV_EXCL` cannot repair it from inside the string: it only fixes the quote, then `fe-gate.sh` passes its `/c/...` script directory to a native `python.exe` that cannot open it.
+
+- `hooks/hooks.json`: each command is now `"$(cygpath -u '${CLAUDE_PLUGIN_ROOT}' 2>/dev/null || printf %s '${CLAUDE_PLUGIN_ROOT}')/scripts/fe-gate.sh"`. On Git Bash, `cygpath -u` converts the substituted path to `/c/...` inside the shell, so the `-c` argument never contains a bare quoted path for MSYS2 to mangle. On macOS and Linux, `cygpath` does not exist, the `printf %s` fallback emits the already-POSIX path, and the hook runs unchanged.
+- Reproduced with `subprocess.run([sh, "-c", '"C:\\…\\fe-gate.sh"'])` (no MSYS parent): exit 2 with the EOF error; the same spawn with the `cygpath` wrapper exits 0 and `fe-gate.py` emits `hookSpecificOutput.additionalContext`. Verified `cygpath` exists under `sh -l` on Git for Windows, and the fallback branch exits 0 with a POSIX root.
+- Version 1.25.0 in `plugin.json`, `package.json`, and both places in `marketplace.json`.
+
 ## 1.24.0
 
 A refactor finished while the smells it touched were still standing, because no file owned that check. The diff reviewer deliberately scores no structural smells (`playbooks/review-diff.md` excludes them), and `references/audit.md`'s judgement list was advisory severity `low` only — nothing made a touched smell block completion.
