@@ -1,7 +1,7 @@
 # fe-kit
 
 ![version](https://img.shields.io/badge/version-1.22.0-blue)
-![hosts](https://img.shields.io/badge/hosts-Claude%20Code%20%7C%20omp-6e56cf)
+![hosts](https://img.shields.io/badge/hosts-Claude%20Code%20%7C%20Devin%20%7C%20omp-6e56cf)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
 **Plugin frontend bắt agent ghi rõ ai sở hữu code và dùng lại hay viết mới — trước khi được sửa một dòng.**
@@ -11,7 +11,7 @@ nằm trong page, cùng một block code chép ở ba nơi, một giá trị đ�
 `useState` thứ hai. Diff đọc vẫn sạch. Nợ chỉ lộ ra sau vài tháng.
 
 fe-kit chèn đúng hai câu hỏi vào chỗ đó. Agent không trả lời được thì không sửa file.
-Một plugin, chạy trên Claude Code và omp.
+Một plugin, chạy trên Claude Code, Devin CLI và omp.
 
 ---
 
@@ -78,6 +78,7 @@ Người viết diff không được chấm diff đó.
 |---|---|
 | Claude Code | Agent `fe-kit:reviewer`, tool `Read` / `Grep` / `Glob` / `Bash`, không sửa, không commit, không spawn reviewer khác |
 | omp | Một context mới, nhiệm vụ duy nhất là diff range + `skill://fe-kit/playbooks/review-diff.md` |
+| Devin | Subagent `fe-kit:reviewer`, tool `read` / `grep` / `glob` / `exec`, không sửa, không commit, không spawn reviewer khác |
 
 Không đưa ghi chú của tác giả. Reviewer thiếu playbook path trong task thì dừng, không tự bịa checklist.
 Nó đi hết `references/REVIEW_CHECKLIST.md` rồi F1–F22 trong `references/review-checks.md`, và
@@ -132,17 +133,21 @@ kèm `Theo code (chưa chạy)`. Sinh file bằng `skills/ut-report/scripts/buil
 | `conflict-fix.md` | Resolve conflict bằng hai block dán cạnh nhau, hoặc mất một phía |
 | `review-diff.md` | Tác giả chấm diff của chính mình |
 
-## Hai host khác nhau ở đâu
+## Ba host khác nhau ở đâu
 
-| Khả năng | Claude Code | omp |
-|---|---|---|
-| Rule theo prompt | Hook `UserPromptSubmit` inject | Rule always-on; badge `⚡ rules` báo prompt khớp |
-| Chặn edit | Hook `PreToolUse` | `extensions/fe-gate.ts` trên `tool_call` |
-| Kiểm sau khi ghi | Hook `PostToolUse`, exit 2 | Cùng extension, lỗi nằm trong tool result |
-| Sau compact | `SessionStart` + `PreCompact` nạp lại rule | Không cần, rule vẫn bật |
-| Verdict hiển thị | Không | Status line: `✓ ok`, `✎ note`, `⛔ blocked`, `⚡ rules` |
+| Khả năng | Claude Code | Devin | omp |
+|---|---|---|---|
+| Rule theo prompt | Hook `UserPromptSubmit` inject | Cùng hook, cộng thêm `trigger: always_on` | Rule always-on; badge `⚡ rules` báo prompt khớp |
+| Chặn edit | Hook `PreToolUse` (`Write\|Edit\|MultiEdit\|Bash`) | Hook `PreToolUse` (`edit\|write\|apply_patch\|exec`) | `extensions/fe-gate.ts` trên `tool_call` |
+| Kiểm sau khi ghi | Hook `PostToolUse`, exit 2 | Hook `PostToolUse`, exit 2 | Cùng extension, lỗi nằm trong tool result |
+| Nhận diện bug / request | Đọc `transcript_path` | `prompt` + `prompt_id` trong payload, state file theo `session_id` | Như Devin |
+| Sau compact | `SessionStart` + `PreCompact` nạp lại rule | `PostCompaction` + `SessionStart` trên resume | Không cần, rule vẫn bật |
+| Verdict hiển thị | Không | Không | Status line: `✓ ok`, `✎ note`, `⛔ blocked`, `⚡ rules` |
 
-Cả hai dùng chung `scripts/fe-gate.sh` → `scripts/fe-gate.py`. Một chỗ sửa, hai host cùng đổi.
+Claude Code và omp dùng chung `scripts/fe-gate.sh` → `scripts/fe-gate.py`. Devin chạy `scripts/devin-gate.sh` →
+`scripts/devin_gate.py`, dùng lại `wording.py`, `bash_target.py`, `label_store.py`, `project_config.py` và toàn bộ
+`rules/` + skill. Payload Devin đã chứa `prompt` và `prompt_id`, nên gate không đọc transcript: `prompt_id` quay theo
+mỗi tin nhắn user và định phạm vi nhãn của request.
 
 ---
 
@@ -224,6 +229,17 @@ omp plugin install fe-kit@fe-kit
 
 Trong TUI: `/marketplace add …` rồi `/marketplace install fe-kit@fe-kit`.
 
+**Devin CLI**
+
+```bash
+devin plugins install nhathoagn/plugin-architecture
+devin plugins info fe-kit
+```
+
+`devin plugins install --local ./plugin-architecture` link bản trên đĩa (cần quyền symlink; trên Windows
+thiếu quyền thì cài qua GitHub như trên). Subagent `fe-kit:reviewer` chỉ chạy ở CLI/Desktop, không có trong
+Devin Cloud session — ở đó hand-off cho một phiên đọc playbook như omp.
+
 **Bản đang sửa trên đĩa**
 
 ```bash
@@ -240,8 +256,12 @@ omp plugin link .
 ## Cấu trúc
 
 ```text
-.claude-plugin/          manifest + marketplace
+.claude-plugin/          manifest + marketplace (Claude Code)
+.devin-plugin/plugin.json manifest Devin
 hooks/hooks.json         hook cho Claude Code
+hooks.json               hook cho Devin (tool name thường, event riêng)
+scripts/devin_gate.py    gate cho Devin (không đọc transcript)
+scripts/devin-gate.sh    wrapper sh cho Devin
 scripts/fe-gate.sh|py    gate dùng chung hai host
 scripts/wording.py       lexer JS/TS/JSX + token diff cho wording/style
 scripts/project_config.py  file thay đổi → luật dự án cần đọc (.fe-kit/config.yaml hoặc tự tìm)

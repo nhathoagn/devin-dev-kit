@@ -1,6 +1,7 @@
 ---
 description: Delete comments that narrate or excuse code. Keep only proven external constraints, legal headers, public API docs, and style-only suppressions. Encode in-scope constraints instead of prose.
 alwaysApply: true
+trigger: always_on
 ---
 
 Default to deleting comments rather than keeping or shortening them. Do not write narration, section banners, commented-out code, or workaround justifications. Never polish a weak comment into a shorter alibi.

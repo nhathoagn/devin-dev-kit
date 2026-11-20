@@ -1,6 +1,7 @@
 ---
 description: Resolve a merge conflict without dropping a real change or duplicating an item.
 alwaysApply: true
+trigger: always_on
 ---
 
 If the task resolves a merge conflict, a rebase conflict, or conflict markers, read all three sides before you edit: the base (`:1`), ours (`:2`), and theirs (`:3`) — `git show :<n>:<path>`. In a rebase, ours is the branch you rebase onto and theirs is the work being replayed. Do not judge a change from the two sides alone.

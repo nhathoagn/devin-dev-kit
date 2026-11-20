@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.26.0
+
+- Devin CLI host: `.devin-plugin/plugin.json`, root `hooks.json`, `scripts/devin-gate.sh`, and `scripts/devin_gate.py`. The Devin payload carries the prompt and `prompt_id`, so the gate keys labels by request without reading a transcript. Block uses `{"decision": "block"}`; `PreCompact` has no Devin equivalent, so `PostCompaction` and `SessionStart` on resume re-inject the pointer. Rules ship `trigger: always_on`; the reviewer agent declares `allowed-tools` for Devin next to `tools`/`model` for Claude Code.
+- `rules/review-diff.md`, `skills/fe-kit/SKILL.md`, and `agents/reviewer.md` name the Devin reviewer path (`fe-kit:reviewer` subagent).
+- `scripts/test_versions.py` also checks `.devin-plugin/plugin.json`.
+
 ## 1.25.0
 
 On Windows, every `hooks.json` command failed with `bash: -c: line 1: unexpected EOF while looking for matching '"'` and the runtime blocked each prompt and tool call. A hook runner spawns `sh -c '<command>'` through Git Bash (MSYS2). MSYS2 converts a `-c` argument that looks like a Windows or POSIX path, and the conversion drops the closing double quote, so bash sees an unterminated string. `MSYS2_ARG_CONV_EXCL` cannot repair it from inside the string: it only fixes the quote, then `fe-gate.sh` passes its `/c/...` script directory to a native `python.exe` that cannot open it.

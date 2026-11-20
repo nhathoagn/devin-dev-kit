@@ -1,6 +1,7 @@
 ---
 description: Read skill fe-kit before non-trivial frontend code.
 alwaysApply: true
+trigger: always_on
 ---
 
 If the task changes UI, a component, a hook, a form, data fetching, or feature state, and it is not a behaviorless wording or style change, read `skill://fe-kit` before you write code.

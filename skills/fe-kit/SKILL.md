@@ -9,7 +9,7 @@ Run this skill before implementing or refactoring non-trivial frontend work (com
 
 Do not write code until ownership and reuse decisions are recorded.
 
-Pick one playbook. Read that file from this skill directory. On omp, use `skill://fe-kit/playbooks/<file>`. Do not read the other playbooks.
+Pick one playbook. Read that file from this skill directory. On omp, use `skill://fe-kit/playbooks/<file>`. On Devin, read the `playbooks/<file>` path under this skill's directory. Do not read the other playbooks.
 
 | Task | Playbook |
 |---|---|
@@ -22,7 +22,7 @@ Pick one playbook. Read that file from this skill directory. On omp, use `skill:
 
 Before the playbook's first edit, read the project rules. List the files you will create or change (`rules/modules.md`). Run `python3 ../../scripts/project_config.py --root <repo> --mode author --files <those files>` from this skill folder, or the full command the hook context gives. Read each `read:` line. A project rule wins over this skill on a name, a layer, or a pattern. Verify with each `gate:` command. The repo file `.fe-kit/config.yaml` is optional: with no config, the command searches `AGENTS.md`, `CLAUDE.md`, and `rules/` folders. A review playbook does its own project-rules step.
 
-If you wrote the diff, do not open `playbooks/review-diff.md`. Hand the diff to agent `fe-kit:reviewer` on Claude Code, or to a fresh omp context whose only task is the diff range and `skill://fe-kit/playbooks/review-diff.md`. The hand-off holds the diff range, the playbook path, the gate result (each `gate:` command and its exit code, which you run before the hand-off), and the path of a design file a person approved, when one exists. Do not include your notes. That reviewer follows the playbook and does not spawn another reviewer. If you were given only the diff and the playbook path, you are that reviewer. If you cannot start the reviewer, stop. Do not write the verdict.
+If you wrote the diff, do not open `playbooks/review-diff.md`. Hand the diff to agent `fe-kit:reviewer` on Claude Code, to the `fe-kit:reviewer` subagent on Devin (spawn it with `run_subagent`), or to a fresh omp context whose only task is the diff range and `skill://fe-kit/playbooks/review-diff.md`. The hand-off holds the diff range, the playbook path, the gate result (each `gate:` command and its exit code, which you run before the hand-off), and the path of a design file a person approved, when one exists. Do not include your notes. That reviewer follows the playbook and does not spawn another reviewer. If you were given only the diff and the playbook path, you are that reviewer. If you cannot start the reviewer, stop. Do not write the verdict.
 
 Two scripts from this skill folder keep the hand-off mechanical:
 

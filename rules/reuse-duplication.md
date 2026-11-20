@@ -1,6 +1,7 @@
 ---
 description: Reuse an existing implementation. Do not write the same code twice. When only the data changes, keep one implementation.
 alwaysApply: true
+trigger: always_on
 ---
 
 If the task adds or changes a function, component, hook, type, constant, validation, fetch, handler, state, prop, or variable, search before you write it. A behaviorless wording or style change does not need this search, as defined in `rules/fe-implementation.md`. Any fix that changes behavior does, however few lines it touches.

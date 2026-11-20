@@ -1,6 +1,7 @@
 ---
 description: One job per file. A different job is a new file in the owning feature, with a narrow export.
 alwaysApply: true
+trigger: always_on
 ---
 
 A file does one job. A folder does one job. When the new code does a different job from the file you are editing, put it in a new file in the owning feature and leave one call in the old file. A small difference in the same job is an argument, not a new file (`rules/reuse-duplication.md`).

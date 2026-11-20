@@ -5,11 +5,23 @@ File map của plugin fe-kit. Mỗi node một trách nhiệm. Đọc từ trên
 ```text
 plugin-architecture
 ├── .claude-plugin/
-│   ├── plugin.json          manifest: tên fe-kit, version 1.15.0
+│   ├── plugin.json          manifest: tên fe-kit, version 1.26.0
 │   └── marketplace.json     khai báo marketplace để /plugin install fe-kit@fe-kit
+├── .devin-plugin/
+│   └── plugin.json          manifest Devin (Devin ưu tiên .devin-plugin/ trước .claude-plugin/)
+├── hooks.json               hook cho Devin: UserPromptSubmit, PreToolUse (edit|write|apply_patch|exec), PostToolUse (edit|write|apply_patch), SessionStart, PostCompaction → chạy devin-gate.sh
 ├── hooks/
 │   └── hooks.json           5 event (UserPromptSubmit, PreToolUse, PostToolUse, SessionStart, PreCompact) → chạy fe-gate.sh; PreToolUse bắt Write|Edit|MultiEdit|Bash
 ├── scripts/
+│   ├── devin-gate.sh        wrapper sh cho Devin, gọi devin_gate.py; thiếu file/python thì exit 0
+│   ├── devin_gate.py        gate cho Devin: payload có sẵn prompt + prompt_id nên không đọc transcript; state file theo session_id (tempdir, ghi đè bằng FE_GATE_STATE_DIR); request = prompt_id của tin nhắn không-phải-continuation cuối
+│   │   ├── gated_view       edit|write|apply_patch|exec chạm .tsx/.jsx/.js/.mjs/.cjs/.vue/.svelte/.astro/.mdx
+│   │   ├── patch_target()   apply_patch không có file_path → bóc đường dẫn gated từ `*** Update File:` / `+++ b/`
+│   │   ├── bug state        UserPromptSubmit lưu bug_signal(prompt) vào state; PreToolUse đọc lại — thay cho đọc transcript
+│   │   ├── declared_texts() label_store.load(session, "", request_key): nhãn từ echo exec hoặc dòng nhãn user gõ trong prompt
+│   │   ├── block            in {"decision":"block","reason":...}; PostToolUse lỗi thì exit 2 qua stderr
+│   │   └── emit()           hookSpecificOutput.additionalContext (event name thật của Devin)
+│   │   giới hạn kế thừa: bash_target.write_target chỉ bắt target tương đối — redirect ra đường tuyệt đối lọt gate (giống host Claude)
 │   ├── fe-gate.sh           tìm python3, chuyển stdin JSON sang fe-gate.py; thiếu python3 thì bỏ qua (fail open)
 │   ├── fe-gate.py           lõi gate: đọc transcript, chốt allow/deny, bơm rule theo intent
 │   │   ├── wording_exempt() :369  Edit/MultiEdit đi qua khi token diff chỉ đổi copy/style/comment
@@ -28,17 +40,18 @@ plugin-architecture
 │   ├── review_record.py     save: lưu report + sha vào .fe-kit/reviews/<branch>.md; last: in sha và lỗi cũ cho lần review sau
 │   ├── test_wording.py      78 test lexer/token diff
 │   ├── test_fe_gate.py      191 test cho hành vi fe-gate.py
+│   ├── test_devin_gate.py   27 test cho devin_gate.py: inject, block, echo nhãn, bug repro, wording exempt, exec ghi file, isolation theo session
 │   ├── test_yaml_subset.py  52 test, so với pyyaml khi máy có
 │   ├── test_project_config.py  53 test glob, fallback, config, lỗi, preset, git, thư mục con, tên non-ASCII
 │   ├── test_review_check.py 25 test report
 │   ├── test_review_packages.py 19 test split/merge
 │   ├── test_review_record.py 15 test save/last
 │   ├── test_rule_copies.py  một câu luật chỉ nằm ở một file (rules/ → skill, SKILL.md → playbook)
-│   └── test_versions.py     plugin.json = package.json = marketplace.json = CHANGELOG
+│   └── test_versions.py     plugin.json = .devin-plugin/plugin.json = package.json = marketplace.json = CHANGELOG
 ├── extensions/
 │   ├── fe-gate.ts           omp extension (khai báo `omp.extensions` trong package.json): map edit/ast_edit/write/bash sang payload gate (nhận old_string, oldText, oldString, old_str, old, search; edits[]), chặn edit thiếu nhãn qua tool_call, kiểm conflict/rules.sh sau ghi qua tool_result — gọi cùng scripts/fe-gate.sh; ghi verdict cuối (ok/blocked/note/rules) lên status line
 │   └── fe-gate.test.ts      29 case `node --test`, spawn gate thật (Windows: qua `sh`, đường dẫn dấu /)
-├── rules/                   nội dung bơm vào prompt (hook nạp, không phải agent tự đọc)
+├── rules/                   nội dung bơm vào prompt (hook nạp); frontmatter thêm trigger: always_on cho Devin
 │   ├── fe-implementation.md quy trình edit: quyết định trước, code sau
 │   ├── reuse-duplication.md tái sử dụng implementation có sẵn, cấm viết trùng
 │   ├── modules.md           một việc một file; file dài không tự nhiên là lý do chia
