@@ -4,7 +4,7 @@ Checklist maintainability theo 6 nhóm refactor của Fowler (*Refactoring*, 2nd
 
 Checklist này chỉ chấm **cấu trúc**. Correctness, security, test, perf nằm ở `REVIEW_CHECKLIST.md` (nhóm C, SEC, P, T). Một diff có thể PASS hết đây mà vẫn có bug — và ngược lại, code FAIL cấu trúc vẫn có thể đúng. Hai checklist đi kèm, không thay thế nhau. Verdict borderline: ghi FAIL kèm "borderline" trong câu why — không có verdict thứ tư; khi do dự giữa PASS và FAIL, chọn FAIL.
 
-`smells-checklist.md` đi theo chiều ngược lại: index 24 mùi của ch.3 (SM1–SM24) để phát hiện và đặt tên — file này chấm theo nhóm refactor, file kia nhìn theo triệu chứng. `posd-checklist.md` thêm lăng kính Ousterhout (O1–O16): độ sâu module, pull-complexity-down, define-errors-out — các câu hỏi hai file Fowler không hỏi.
+`smells-checklist.md` đi theo chiều ngược lại: index 24 mùi của ch.3 (SM1–SM24) để phát hiện và đặt tên — file này chấm theo nhóm refactor, file kia nhìn theo triệu chứng. `posd-checklist.md` thêm lăng kính Ousterhout (O1–O16): độ sâu module, pull-complexity-down, define-errors-out — các câu hỏi hai file Fowler không hỏi. `tidy-checklist.md` (T1–T21) chấm phần còn lại của Kent Beck: động tác dọn vài phút và kỷ luật tách commit tidy khỏi behavior. `test-checklist.md` (U1–U16) là phần duy nhất chấm test code — Khorikov's resistance to refactoring cho test, khác với mọi item chấm production code. `patterns.md` là từ điển tra thuận — khi một FAIL cần cure lớn hơn tidying, tra tín hiệu → pattern và cột "đừng áp khi" trước khi đề xuất. `frontend-moves.md` là catalog move đặc thù FE (FM1–FM15: state placement, hooks, effects, fetch) cho chỗ Fowler không đặt tên.
 
 Comment viết theo cấu trúc `smell → refactor → vì sao`, ví dụ:
 

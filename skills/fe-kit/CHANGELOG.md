@@ -1,5 +1,41 @@
 # Changelog
 
+## 1.33.0
+
+The Fowler catalog covers intra-class moves, but a frontend refactor hits moves the catalog cannot name: a prop drilled through two levels, an effect that exists only to sync state with state, a serial `await` pair that is not a real dependency, a `useEffect` fetch reimplemented per screen. Each was fixed ad hoc because no file named the move or its guard.
+
+- New `references/frontend-moves.md`: 15 FE-shaped moves (FM1–FM15) in Fowler's move format — signal, mechanics, and a "Đừng khi" guard. Four groups: state placement (lift state up, colocate state down, prop drilling → composition/context, effect → derived state), component split axes (split by change axis not by code kind, extract custom hook, extract list item, effect → event handler), async and fetch (then-chains → async/await, serial → parallel where the dependency is not real, fetch-in-effect → the repo's data layer, unstable deps → stable), and data/render (repeated JSX → typed record + map, abort/cleanup for async effects, code-split at route boundaries). Each move says when NOT to apply it — the guard is the point.
+- `playbooks/refactor-ui.md` step 7 sends FE-shaped cures to the new catalog alongside `patterns.md`.
+- `references/fowler-checklist.md` points at the new file.
+- Version 1.33.0 in `plugin.json`, `package.json`, and both places in `marketplace.json`.
+
+## 1.32.0
+
+Five checklists name and score problems, but when a FAIL's cure is bigger than a tidying there was no map to the named solutions. A refactor fixing repeated switches had to reinvent what is called a State pattern, and there was no guard checking whether the pattern was even needed — an unneeded pattern is Speculative Generality, not a cure.
+
+- New `references/patterns.md`: a forward lookup `tín hiệu → pattern → áp khi / đừng áp khi` from *Head First Design Patterns*, written for JS. Four groups — variant behavior (Strategy, State, Template Method, param injection), object creation (Factory Method, Abstract Factory, Singleton), object relations (Observer, Decorator, Adapter, Facade, Command, Proxy, Composite), and the patterns JS already absorbed (Iterator, Observer, Singleton, MVC). Every row has a "Đừng áp khi" column: the guard is the point — a pattern applied where the problem does not exist yet is SM17/O7.
+- `playbooks/refactor-ui.md` step 7 sends cures bigger than a tidying to `references/patterns.md` before proposing them.
+- `references/fowler-checklist.md` points at the new file.
+- Version 1.32.0 in `plugin.json`, `package.json`, and both places in `marketplace.json`.
+
+## 1.31.0
+
+Four checklists score production code, and `REVIEW_CHECKLIST.md`'s T group checks that tests exist — but nothing scored the tests themselves. A suite could exist, be deterministic, go red when behavior breaks, and still pin every assertion to implementation details: a refactor that keeps behavior would break it everywhere, teaching the team to ignore red tests. That is Khorikov's resistance-to-refactoring failure, the costliest test failure mode there is.
+
+- New `references/test-checklist.md`: 16 items (U1–U16) from *Unit Testing: Principles, Practices, and Patterns*. U1–U4 are the four pillars as FAIL tests; U5–U7 are mock hygiene (mock only unmanaged/out-of-process dependencies, never assert on stubs, verify at the system boundary); U8–U12 are the anti-patterns (private-method testing, test-only code in production, tautological expectations, hidden time/randomness); U13–U16 are the integration and DB rules (real databases over in-memory, never mock repositories, independent fixtures, no coverage-chasing asserts). Each item cross-references its twin in `REVIEW_CHECKLIST.md` or the other checklists so a finding counts once.
+- `playbooks/refactor-ui.md` step 7 reads it when the work adds or changes tests — the other four score the production code, this one scores the suite.
+- `references/fowler-checklist.md` points at the new file.
+- Version 1.31.0 in `plugin.json`, `package.json`, and both places in `marketplace.json`.
+
+## 1.30.0
+
+Three checklists score the code a refactor produces, but none governs how the work is done. A diff could land every FAIL it touched and still mix tidy commits with behavior changes, tidy code about to be deleted, or edit inside a tangle it could not read — the failure modes Kent Beck's *Tidy First?* exists for.
+
+- New `references/tidy-checklist.md`: T1–T15 are the fifteen tidyings (guard clauses, explaining variables/constants, one pile, new-interface-old-implementation, chunk statements, …) written as FAIL tests; T16–T21 are the managing rules — separate tidy commits from behavior commits, timebox tidying chains, batch against review cost, tidy at natural pauses, get untangled by tidying first instead of editing inside the tangle, and the book's titular question: tidy only where the next change will pass. Each item cross-references its twin in the other checklists so a finding counts once.
+- `playbooks/refactor-ui.md` step 7 reads it after the other three: the first three score the code, this one governs how the tidying lands.
+- `references/fowler-checklist.md` points at the new file.
+- Version 1.30.0 in `plugin.json`, `package.json`, and both places in `marketplace.json`.
+
 ## 1.29.0
 
 AI writes code faster than the person who has to maintain it can follow. A change could pass every gate and still leave the user unable to explain the logic or debug it without the AI. The last step before a commit was missing.
