@@ -1,0 +1,66 @@
+[
+  {
+    "query": "Add a payment method picker to checkout. Match the existing form patterns.",
+    "should_trigger": true
+  },
+  {
+    "query": "Refactor the profile settings page into smaller components.",
+    "should_trigger": true
+  },
+  {
+    "query": "Implement the new invoice list UI and wire it to the existing query hooks.",
+    "should_trigger": true
+  },
+  {
+    "query": "Viết component form địa chỉ cho trang checkout, đừng tạo form library mới.",
+    "should_trigger": true
+  },
+  {
+    "query": "Refactor hook useCart vì nó fetch tuần tự và render lại cả trang.",
+    "should_trigger": true
+  },
+  {
+    "query": "Review the order detail component and tell me what to clean up.",
+    "should_trigger": true
+  },
+  {
+    "query": "Check lại code màn chi tiết, làm gọn helper và schema giúp tôi.",
+    "should_trigger": true
+  },
+  {
+    "query": "Fix the typo on the Submit button.",
+    "should_trigger": false
+  },
+  {
+    "query": "Change the button color from blue to gray.",
+    "should_trigger": false
+  },
+  {
+    "query": "Add a retry to the Go payment worker.",
+    "should_trigger": false
+  },
+  {
+    "query": "What does omp v18.12.6 change?",
+    "should_trigger": false
+  },
+  {
+    "query": "Audit kiến trúc màn danh sách đơn hàng: tái sử dụng, flow, xử lý lỗi, hiệu năng, mở rộng.",
+    "should_trigger": true
+  },
+  {
+    "query": "Review the job progress hook as a tech lead: what will it cost when we add a new status?",
+    "should_trigger": true
+  },
+  {
+    "query": "Review the checkout component diff before I commit.",
+    "should_trigger": true
+  },
+  {
+    "query": "Tổng sai khi có discount ở màn checkout.",
+    "should_trigger": true
+  },
+  {
+    "query": "The checkout screen goes blank when I submit the order form.",
+    "should_trigger": true
+  }
+]

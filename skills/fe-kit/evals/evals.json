@@ -1,0 +1,264 @@
+{
+  "skill_name": "fe-kit",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Add a billing address form to the checkout feature. Reuse what the repo already has. Do not invent a second form library.",
+      "expected_output": "Filled Architecture, Reuse Decision, and Performance sections before any implementation. Decision is reuse, extend, or feature-local, not a new shared abstraction for one consumer.",
+      "expectations": [
+        "The output names a runtime owner, a first-fix owner, and a canonical long-term owner separately.",
+        "The reuse decision is one of reuse, extend, feature-local, or shared.",
+        "No implementation code appears before the Architecture and Reuse Decision sections are filled.",
+        "The performance section covers waterfalls, bundle, data fetching, re-renders, and loading, error, and empty handling."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Fix the typo in the Submit button label.",
+      "expected_output": "The skill is not invoked. The change is a behaviorless copy fix.",
+      "expectations": [
+        "The skill is not loaded.",
+        "No architecture template is produced."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Check the order detail dialog code. It has many small helpers and the record schema is z.record. Make it cleaner, do not change what it shows.",
+      "expected_output": "Uses playbooks/review-ui.md. The user-facing report is the Vietnamese template: Kết luận first, then findings. It does not emit the Code Quality sweep table. Inlines single-use helpers, declares each record field from the server source, and compares the screen before and after.",
+      "expectations": [
+        "The output reads references/code-quality.md and searches every heading from Names through Design and behavior.",
+        "The user-facing report does not contain the English sweep table.",
+        "Each finding is about two spoken Vietnamese sentences under Việc nên làm, with file:dòng, the code's own name, what to do, and the priority in words (nên sửa trước, nên sửa trong lượt này, or có thể để sau).",
+        "A heading with nothing wrong is omitted. Findings are not deferred to another run.",
+        "Helpers called once are written inline, not moved to shared.",
+        "The schema declares each field instead of a loose record.",
+        "Kết luận names the check commands with exit codes and whether the screen matched."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Review the order export screen as a tech lead. It starts a background job, polls its progress on every list row, and maps the job status to labels in the client.",
+      "expected_output": "Uses playbooks/review-ui.md. The user-facing report is the Vietnamese template, Kết luận first. It does not emit the Code Quality sweep or the Audit table. Findings name the client label map, the per-row polling load with a number, and any second path for one flow.",
+      "expectations": [
+        "The output reads references/audit.md. It does not emit the English Audit table.",
+        "Each finding is about two spoken Vietnamese sentences under Việc nên làm, with file:dòng, what it costs if it stays, and the priority in words (nên sửa trước, nên sửa trong lượt này, or có thể để sau).",
+        "The polling finding gives a worst-case request rate as rows times polls per minute.",
+        "The client map of server status labels is a finding, with a server-driven fix and a fallback for an unknown value.",
+        "A flow finding covers double submit, late replies, reload, and unmount when that code exists.",
+        "A bare data or result at component scope is a finding. A clean heading is omitted."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Add a promo banner with its own API call to the existing checkout screen. It must be possible to turn it off without a code change, and checkout must behave exactly as before when it is off.",
+      "expected_output": "Uses playbooks/new-ui.md and reads references/feature-isolation.md. Fills the Feature Isolation table before implementation: the project's existing flag system, default off, flag read once at the checkout entry owner, banner logic in new files inside the checkout feature, existing files touched only at one listed seam, and a deletion test.",
+      "expectations": [
+        "The output searches for the project's existing flag system and does not invent a second one.",
+        "The flag default is the old behavior, and the flag is read in exactly one place: the entry owner.",
+        "No hook is called conditionally on the flag; the banner component mounts only when the flag is on, or its query uses enabled: flag.",
+        "With the flag off, the banner makes no request and checkout's render and payload are unchanged.",
+        "Deleting the new files plus the seam restores the old checkout; the flag has a named owner and a removal date or ticket."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "The checkout total is wrong when a discount applies. Fix the calculation, and split the long checkout component into smaller files while you are there.",
+      "expected_output": "No feature flag is introduced. The bug fix restores documented behavior and the split is a pure refactor guarded by the before/after screen comparison. Feature Isolation is recorded as n/a with the reason.",
+      "expectations": [
+        "The output does not gate the bug fix or the refactor behind a flag, and does not add a flag client or config toggle.",
+        "Feature Isolation is n/a and names the reason: bug fix plus pure refactor, no new behavior.",
+        "The screen is compared before and after, and a difference blocks done."
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "Resolve the merge conflict in the checkout feature. Both branches added items to the same list, one branch deleted an item the other branch edited, and both set the same config field to different values.",
+      "expected_output": "Reads the base, ours, and theirs for each conflicted file before editing. Keeps each side's unique list items once, does not paste both blocks, and combines only non-overlapping fields of an item both sides changed.",
+      "expectations": [
+        "The output inspects all three sides (:1 base, :2 ours, :3 theirs), not only the two conflict blocks.",
+        "A deletion counts as a change: an item deleted on one side and untouched on the other is not resurrected.",
+        "The delete-versus-edit item and the config field both sides set differently are raised to the user with both meanings named, not silently resolved.",
+        "No file is resolved with --ours or --theirs without a base check that the other side has no unique change.",
+        "After resolving, every conflicted file is searched for markers and repeated items, and the project's build, type-check, or tests are run."
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "Add a shipping address form beside the existing billing address form. Billing already validates and submits. Do not copy that form into a second component.",
+      "expected_output": "Searches for the billing address form and opens one caller before any new file. Reuses or extends that form when the contract matches. After the edit, compares the new lines with the billing form and does not leave those statements written twice. Names the search and a decision of reuse, extend, feature-local, or shared.",
+      "expectations": [
+        "The output names the search, including the billing form and a literal it owns, such as a field name or a validation message.",
+        "A candidate is opened with one caller before new code is written.",
+        "The decision is reuse or extend when the billing contract matches. A new component names the contract mismatch.",
+        "The billing form's statements are not pasted into a second block. Duplicated code names both file locations.",
+        "A feature-local or shared decision with no search is not accepted. Shared names two real consumers."
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "The checkout form renders Input once per address field: line, city, region, postal code, and country. Each call differs only by label, name, and autocomplete. Refactor the form without changing what the user sees.",
+      "expected_output": "Proposes one Address type, a const addressFields list typed with as const satisfies and keyof Address, and a single Input inside addressFields.map. Does not leave five Input calls.",
+      "expectations": [
+        "The output names the repeated component and the call count.",
+        "The refactor is one typed field list and one .map, matching the shape in rules/reuse-duplication.md.",
+        "value[field.key] reads the field and onChange writes { ...value, [field.key]: next }.",
+        "A call that uses a different component or a different handler is not forced into the list."
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "Review the checkout folder. Do not change the code.",
+      "expected_output": "The only user-facing report is the Vietnamese template in playbooks/review-ui.md. Kết luận is first. Sections with findings use Viết hai lần, Chỉ khác dữ liệu, Việc nên làm, and Không đụng tới. Dùng lại is one or two spoken sentences. Empty sections are omitted. There is no Phạm vi list and no Chất lượng or Kiểm tra table. The pass stops after that report.",
+      "expectations": [
+        "The report is in Vietnamese. Kết luận is the first section. Each finding is spoken Vietnamese, about two sentences, with file:dòng, the code's own name, what to do, why it matters, and the priority in words.",
+        "The report does not list files opened and does not emit a checklist table of clean rows.",
+        "Code written twice names both file locations.",
+        "Calls that differ only by data are a proposal, and the code is not edited.",
+        "The agent does not re-read the tree after the report is written.",
+        "The reviewer does not write GLOSSARY.md, an ADR, or an HTML file. A judgement call from the Architecture lens is có thể để sau in Việc nên làm, not a hard defect. It does not open code-review."
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "Review the checkout component diff before I commit. Do not change the code.",
+      "expected_output": "The author does not grade the diff. Claude Code hands the diff and the playbook path to fe-kit:reviewer. omp uses a fresh context that reads playbooks/review-diff.md. The author does not write the verdict.",
+      "expectations": [
+        "The author does not fill the Vietnamese review-ui report for this diff.",
+        "The author does not write SHIP, SHIP_WITH_FIXES, or NO_SHIP.",
+        "The fresh reviewer reads references/REVIEW_CHECKLIST.md and marks every S, C, D, N, E, SEC, P, T, TY, R, and DOC item, then walks F1 through F22 in references/review-checks.md.",
+        "A FAIL names path:line, severity, and a one-line fix.",
+        "If the reviewer cannot be started, the author stops and does not write the verdict.",
+        "The fresh reviewer looks for a local spec file before judging scope: a commit-message path or issue number that names a file under docs/, specs/, or .scratch/, then a path the task names, then a name match on the branch or feature. It does not fetch an issue tracker and does not open code-review.",
+        "A missing, extra, or wrong requirement is one sentence in the same Vietnamese report and quotes the spec line. No spec file is one line under Kết luận, not a second report.",
+        "If GLOSSARY.md, CONTEXT.md, or GLOSSARY-MAP.md exists, a new name that conflicts with it is one sentence in the same report and quotes that line. No such file is not a finding. The reviewer does not apply the Architecture smell list and does not write a glossary or an ADR."
+      ]
+    },
+    {
+      "id": 12,
+      "prompt": "A form helper builds errors this way: a const `[field, messageCode]` table, then `.filter(([field]) => (values[field] ?? '').startsWith(' ')).map(([field, code]) => ({ path: [field], message: t(code) }))`. Should this use zod instead?",
+      "expected_output": "No schema. The table is the one list, the check reads values the form already typed, and it only builds messages. The finding is `(values[field] ?? '')`, which lets an absent required field pass. The table is typed against `keyof Values` and the message-key union instead of gaining a schema.",
+      "expectations": [
+        "The answer does not ask for a zod schema, and names what a schema buys: parsing untrusted input, the parsed value, the inferred type, or a shape guarantee.",
+        "The answer names the field list a schema would duplicate: the `[field, code]` table.",
+        "`(values[field] ?? '')` is reported as a false pass for an absent required field.",
+        "The answer names the one-code-per-field limit of the table, or the non-string throw from `startsWith`.",
+        "The fix is typing the table against `keyof Values` and the message-key union, not a second validation path."
+      ]
+    },
+    {
+      "id": 13,
+      "prompt": "Review this form check. It returns an error when `(values[field] ?? '').startsWith(' ')`. The message says the field must not be empty and must not have space at either end. Do not require a library.",
+      "expected_output": "Fail the check. `\"\"` and `\"ABC \"` pass, so the predicate is not the rule the message names. Do not ask for zod. Keep one implementation, a table or a schema.",
+      "expectations": [
+        "The answer does not require zod or any other library.",
+        "The answer fails the check because an empty string passes.",
+        "The answer fails the check because a trailing space passes.",
+        "The answer says the message and the predicate must cover the same cases."
+      ]
+    },
+    {
+      "id": 14,
+      "prompt": "The checkout form already uses zodResolver and a zod schema. Add a helper that filters address fields and returns { path, message } for empty and edge space. Is that the right shape?",
+      "expected_output": "No. Add the cases to the existing schema. Delete the helper. Do not add a second validation path.",
+      "expectations": [
+        "The answer names the existing validator and says to add the cases there.",
+        "The answer rejects the new helper.",
+        "The answer does not add a second schema or a filter/map helper beside the resolver."
+      ]
+    },
+    {
+      "id": 15,
+      "prompt": "The discount total is wrong. Fix it by adding isDiscounted state and a discountedTotal prop. The form already has discount.",
+      "expected_output": "Do not add the state or the prop. Read the existing discount value and fix the calculation there. Name the holder that was checked.",
+      "expectations": [
+        "The answer does not add useState or a new prop for a value discount already holds.",
+        "The answer names the existing holder and says to read it or write into it.",
+        "The answer treats a second holder as a finding, not as the fix."
+      ]
+    },
+    {
+      "id": 16,
+      "prompt": "Review this helper. It returns an error only when `(values[field] ?? '').startsWith(' ')`. The message code is for a leading space. No schema exists yet.",
+      "expected_output": "Fail the helper. `undefined`, `null`, and `\"\"` produce no error. Do not wait for a schema, and do not wait for the message to mention empty.",
+      "expectations": [
+        "The answer fails the helper because `undefined` produces no error.",
+        "The answer fails the helper because `\"\"` produces no error.",
+        "The answer does not treat the missing schema as a reason to pass.",
+        "The answer does not require the message to mention empty before failing the helper."
+      ]
+    },
+    {
+      "id": 17,
+      "prompt": "Review this diff before commit. The only change is a helper that returns an error when `(values[field] ?? '').startsWith(' ')`. Write the review. Do not change the code.",
+      "expected_output": "The review applies `undefined`, `null`, `\"\"`, `\" ABC\"`, and `\"ABC \"` to the helper. It does not say the diff can ship. `undefined`, `null`, and `\"\"` produce no error, and that is a finding with file:line.",
+      "expectations": [
+        "The answer does not say the diff can ship.",
+        "The answer applies `undefined`, `null`, and `\"\"` to the helper instead of only reading the message code.",
+        "The answer names that those three values produce no error."
+      ]
+    },
+    {
+      "id": 18,
+      "prompt": "Tổng sai khi có discount ở màn checkout.",
+      "expected_output": "Uses playbooks/fix-bug.md. Reproduces the wrong total first, traces the value to the owner that produces it, and fixes it there. No fallback, guard, new state, or refactor is mixed in. A regression check is left and the reproduction is re-run after the fix.",
+      "expectations": [
+        "The output names the trigger, the expected total, the actual total, and the evidence before any edit.",
+        "The fix lands where the wrong value is produced, not in a component that only displays it.",
+        "No second holder, silent fallback, or unrelated cleanup is added.",
+        "A test or named reproduction fails before the fix and passes after, and the verify commands are reported with exit codes."
+      ]
+    },
+    {
+      "id": 19,
+      "prompt": "One-line fix: change the checkout total line to `const total = subtotal - (discount ?? 0)` so a missing discount stops breaking the screen.",
+      "expected_output": "Not a wording exemption. The change alters runtime behavior, so playbooks/fix-bug.md applies: reproduce, find why discount is missing at its owner, and fix that instead of adding a default that hides it.",
+      "expectations": [
+        "The output does not treat the change as wording, and names the behavior it alters.",
+        "The output asks why discount is absent instead of accepting the `?? 0` default.",
+        "The fix is at the owner of the discount value, with a regression check."
+      ]
+    },
+    {
+      "id": 20,
+      "prompt": "Write the unit test for the checkout total bug. The owner is price.ts. The repo already has price.test.ts next to it. Actual: discount missing yields NaN. Expected: 90.",
+      "expected_output": "Updates price.test.ts, not a new folder or a copied helper. The test calls the owner and asserts 90 and the NaN case. The NaN case fails on the old code.",
+      "expectations": [
+        "The test is added to the existing price.test.ts beside the owner.",
+        "The test calls the owner and asserts the value the user sees, not that a mock was called.",
+        "The test includes the failing case and the expected case.",
+        "The answer does not skip the file because there was no time."
+      ]
+    },
+    {
+      "id": 21,
+      "prompt": "Review the diff before commit. The repo has .fe-kit/config.yaml with rules: [{glob: \"src/**\", read: [docs/ui-rules.md]}]. docs/ui-rules.md line 3 says: 'Tables use DataTable from src/shared/data-table.tsx. No raw <table>.' The diff adds a raw <table> in src/orders/order-list.tsx.",
+      "expected_output": "The reviewer runs project_config.py, reads docs/ui-rules.md, and reports the raw <table> as a finding that quotes docs/ui-rules.md:3. The report ends with Nguồn và độ phủ, which names docs/ui-rules.md under Luật đã đọc.",
+      "expectations": [
+        "The reviewer runs scripts/project_config.py before it judges the diff.",
+        "The finding quotes docs/ui-rules.md:3 and names src/orders/order-list.tsx with a line.",
+        "The report has Luật đã đọc, Cổng, and Độ phủ lines with values.",
+        "The reviewer runs scripts/review_check.py and reports its exit code as 0 before it stops."
+      ]
+    },
+    {
+      "id": 22,
+      "prompt": "Review the diff before commit. The diff changes useOrderTotal in src/orders/use-order-total.ts to return { total, tax } instead of a number. src/cart/cart-summary.tsx is not in the diff and renders {useOrderTotal(items).toFixed(2)}.",
+      "expected_output": "The reviewer searches the callers of useOrderTotal outside the diff and reports src/cart/cart-summary.tsx with its line: the cart summary crashes or shows nothing because the hook no longer returns a number.",
+      "expectations": [
+        "The report names src/cart/cart-summary.tsx with a line number, though that file is not in the diff.",
+        "The finding says what the user loses on the cart screen.",
+        "The verdict is not Đưa được."
+      ]
+    },
+    {
+      "id": 23,
+      "prompt": "Review the diff before commit. The repo .fe-kit/config.yaml lists presets: [legacy-rewrite] and legacy.source: dev/. The diff trims the order code before the length check. dev/OrderEntry.java checks the length on the raw text, then trims. No change request names this field.",
+      "expected_output": "The reviewer reads presets/legacy-rewrite/review.md and reports the order of trim and check as a behavior that differs from the old system with no change request, quoting the old-system line and the new line.",
+      "expectations": [
+        "The reviewer reads presets/legacy-rewrite/review.md.",
+        "The finding quotes a dev/OrderEntry.java line and the new line.",
+        "The finding says that no change request names the field."
+      ]
+    }
+  ]
+}

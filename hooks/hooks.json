@@ -1,0 +1,58 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(cygpath -u '${CLAUDE_PLUGIN_ROOT}' 2>/dev/null || printf %s '${CLAUDE_PLUGIN_ROOT}')/scripts/fe-gate.sh\""
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(cygpath -u '${CLAUDE_PLUGIN_ROOT}' 2>/dev/null || printf %s '${CLAUDE_PLUGIN_ROOT}')/scripts/fe-gate.sh\""
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(cygpath -u '${CLAUDE_PLUGIN_ROOT}' 2>/dev/null || printf %s '${CLAUDE_PLUGIN_ROOT}')/scripts/fe-gate.sh\""
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(cygpath -u '${CLAUDE_PLUGIN_ROOT}' 2>/dev/null || printf %s '${CLAUDE_PLUGIN_ROOT}')/scripts/fe-gate.sh\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(cygpath -u '${CLAUDE_PLUGIN_ROOT}' 2>/dev/null || printf %s '${CLAUDE_PLUGIN_ROOT}')/scripts/fe-gate.sh\"",
+            "timeout": 180
+          }
+        ]
+      }
+    ]
+  }
+}
