@@ -35,6 +35,10 @@ try:
     import project_config
 except Exception:
     project_config = None
+try:
+    import handoff
+except Exception:
+    handoff = None
 
 # The hook payload is UTF-8. Windows Python decodes stdin as cp1252 by default, which breaks Vietnamese prompts.
 raw = sys.stdin.buffer.read().decode("utf-8", errors="replace").strip()
@@ -61,9 +65,66 @@ if isinstance(tool_input, dict):
     cwd = tool_input.get("workdir") or ""
 cwd = cwd or os.environ.get("DEVIN_PROJECT_DIR") or os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
 
+def git_commit(command, cwd):
+    # (repo root, stages all tracked files) when the command runs git commit, else None.
+    if not bash_target or not command:
+        return None
+    for tokens, _ in bash_target.shell_segments(command):
+        index = bash_target.command_index(tokens)
+        if index >= len(tokens) or os.path.basename(tokens[index]) != "git":
+            continue
+        rest = tokens[index + 1:]
+        if "commit" not in rest:
+            continue
+        root = cwd or "."
+        for position, token in enumerate(rest):
+            if token == "-C" and position + 1 < len(rest):
+                candidate = rest[position + 1]
+                root = candidate if os.path.isabs(candidate) else os.path.join(cwd or ".", candidate)
+        return os.path.abspath(root), ("-a" in rest or "--all" in rest)
+    return None
+
+def handoff_disabled(root):
+    if not project_config:
+        return False
+    try:
+        config, _ = project_config.load_config(root)
+    except Exception:
+        return False
+    return bool(config and config.get("handoff") == "off")
+
+def handoff_script():
+    root = os.environ.get("FE_ARCH_ROOT") or os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    return os.path.join(root, "scripts", "handoff.py")
+
+def commit_block(root, all_files):
+    if not handoff or not os.path.isdir(root) or handoff_disabled(root):
+        return ""
+    files = handoff.staged_files(root)
+    if all_files:
+        files += handoff.changed_files(root)
+    found = handoff.problems(root, sorted(set(files)))
+    if not found:
+        return ""
+    return (
+        "Blocked. Before a commit, write the logic handoff a person can read and debug from. "
+        + " ".join(found)
+        + " Write `%s` with sections Logic, Implementation, Decisions, Debug without AI, Risks, Q&A; "
+          "name every staged source file; ask the user the Q&A in chat; then ask the user to run: "
+          'python3 "%s" approve --root "%s". Do not run approve yourself.'
+        % (handoff.HANDOFF_PATH, handoff_script(), root)
+    )
+
 declared = []
 if tool_name == "exec" and isinstance(tool_input, dict):
     command = tool_input.get("command") or ""
+    if name == "PreToolUse":
+        commit = git_commit(command, cwd)
+        if commit:
+            reason = commit_block(commit[0], commit[1])
+            if reason:
+                print(json.dumps({"decision": "block", "reason": reason}))
+                sys.exit(0)
     path = bash_target.write_target(command, cwd) if bash_target else ""
     declared = label_store.declared_lines(command) if label_store and not path else []
     # An exec command that writes no frontend file and declares no label has nothing to gate or inject.

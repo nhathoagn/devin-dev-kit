@@ -6,24 +6,20 @@
   },
   "metadata": {
     "description": "Frontend architecture plugin for Claude Code and omp.",
-    "version": "1.26.1"
+    "version": "1.33.0"
   },
   "plugins": [
     {
       "name": "fe-kit",
       "description": "Architecture ownership, reuse-first authoring, and React performance checks before non-trivial frontend work.",
-      "version": "1.26.1",
+      "version": "1.33.0",
       "author": {
         "name": "Nhat Hoang"
       },
       "source": "./",
       "category": "development",
       "license": "MIT",
-      "keywords": [
-        "frontend",
-        "react",
-        "architecture"
-      ]
+      "keywords": ["frontend", "react", "architecture"]
     }
   ]
 }

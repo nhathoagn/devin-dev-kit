@@ -2,41 +2,47 @@
 
 The fe-kit gate covers Edit, Write, and MultiEdit. A Bash command can write the same file through a
 redirect, tee, cp, mv, sed -i, perl -i, or a script. write_target() names that file, so fe-gate.py can
-gate the command like Write. It reads the command text and any script file the command runs.
+gate the command like Write. Shell operators are read outside quotes, and a script run by a test is
+not scanned, because its writes are fixtures.
 """
 import os
 import re
+import shlex
 
-# A Bash command can write a frontend file without Edit or Write: a redirect, tee, sed -i, perl -i, cp, mv,
-# or a script that calls writeFileSync or write_text. Such a command is gated like Write on its target file.
-# A target in a temp or scratchpad folder is a throwaway script, so it stays open.
-BASH_EXT = r"\.(?:tsx|jsx|js|mjs|cjs|vue|svelte|astro|mdx)"
-BASH_PATH = r"['\"]?([^\s;&|<>'\"()]+" + BASH_EXT + r")(?=['\"\s;&|)]|$)"
-BASH_TARGET_RES = [
-    re.compile(r"(?<![0-9&<>=-])>>?\s*" + BASH_PATH, re.I),
-    re.compile(r"\btee\s+(?:-\w+\s+)*" + BASH_PATH, re.I),
-    re.compile(r"\b(?:cp|mv)\s+(?:-\w+\s+)*\S+\s+" + BASH_PATH, re.I),
-]
-# sed -i and perl -i edit every file in their arguments, up to the end of the shell command.
-IN_PLACE_RE = re.compile(r"\b(?:sed|perl)\b[^;&|\n]*?\s-[a-zA-Z]*i\b([^;&|\n]*)")
-BASH_ANY_PATH_RE = re.compile(r"(?<![\w.-])" + BASH_PATH, re.I)
-TEMP_PATH_RE = re.compile(r"(?:^|[\\/])(?:tmp|temp|scratchpad)(?:[\\/]|$)", re.I)
-TEMP_TOKEN_RE = re.compile(r"[^\s;&|<>'\"()]*(?:^|[\\/])(?:tmp|temp|scratchpad)[\\/][^\s;&|<>'\"()]*", re.I)
+BASH_EXT = r"\.(?:tsx|jsx|js|mjs|cjs|vue|svelte|astro|mdx)\b"
+FRONTEND_RE = re.compile(BASH_EXT + r"$", re.I)
 # A writer that builds the path in a variable names only the extension, as in endsWith('.tsx') or '*.tsx'.
-# .js and .mjs are left out here, because the script file itself often has that extension.
 BASH_EXT_MENTION_RE = re.compile(r"\.(tsx|jsx|vue|svelte|astro|mdx)\b", re.I)
-# A variable set in the same command, as in S="C:/x/rename.mjs"; node "$S".
+TEMP_PATH_RE = re.compile(r"(?:^|[\\/])(?:tmp|temp|scratchpad)(?:[\\/]|$)", re.I)
 BASH_ASSIGN_RE = re.compile(r"(?:^|[;&|\n]\s*|\s)([A-Za-z_]\w*)=(?:\"([^\"]*)\"|'([^']*)'|([^\s;&|]+))")
 BASH_SCRIPT_RUN_RE = re.compile(
-    r"\b(?:node|python3?|py|deno|bun|tsx|ts-node|bash|sh|perl|ruby)\s+(?:-[\w-]+\s+)*['\"]?([^\s;&|'\"]+\.(?:m?js|cjs|ts|py|sh|pl|rb))",
+    r"(?<![.\w/\\-])(?:node|python3?|py|deno|bun|tsx|ts-node|bash|sh|perl|ruby)\s+"
+    r"(?:-[\w-]+\s+)*['\"]?([^\s;&|'\"]+\.(?:m?js|cjs|ts|py|sh|pl|rb))",
     re.I,
 )
 BASH_CD_RE = re.compile(r"(?:^|[;&|\n]\s*)cd\s+['\"]?([^\s;&|'\"]+)")
+ASSIGN_TOKEN_RE = re.compile(r"^[A-Za-z_]\w*=")
+SHELL_KEYWORDS = {"do", "then", "else", "elif", "if", "while", "until", "for", "in", "time",
+                  "sudo", "env", "command", "exec", "nohup", "!"}
 SCRIPT_MAX_BYTES = 200_000
+COMMAND_MAX_BYTES = 200_000
+# A test script writes fixtures, not product source. Its writes are not a frontend edit.
+TEST_SCRIPT_RE = re.compile(
+    r"(?:^|[\\/])(?:tests?|__tests__|specs?)[\\/]|(?:^|[\\/])test_[^\\/]*\.py$|\.(?:test|spec)\.[cm]?[jt]sx?$",
+    re.I,
+)
+# The path argument of each write call in a script. Only that argument is a target, so a script that
+# reads src/A.tsx and writes out.json is not gated.
+WRITE_ARG_RES = [
+    re.compile(r"(?:writeFileSync|writeFile|appendFileSync)\(\s*([^,)]*)"),
+    re.compile(r"(\S+?)\.write_text\("),
+    re.compile(r"\bopen\(\s*([^,)]*),\s*['\"][wa]"),
+]
+# A quoted literal, bare or inside Path(...). Anything else is built at run time.
+LITERAL_ARG_RE = re.compile(r"^(?:\w+\()?(['\"])([^'\"$+`{}]*)\1\)?$")
 
 def dir_at(text, pos):
     # A relative path resolves against the last cd before it, as in cd "$SP"; sed -i ... check.js.
-    # With no cd the base is "": the session cwd itself may sit in a temp folder, so it never makes a path temp.
     base = ""
     for match in BASH_CD_RE.finditer(text):
         if match.start() < pos:
@@ -53,7 +59,11 @@ def expand_variables(command):
     for match in BASH_ASSIGN_RE.finditer(command):
         values[match.group(1)] = next(value for value in match.groups()[1:] if value is not None)
     for name_, value in values.items():
+        if "$" in value:
+            continue
         command = re.sub(r"\$\{" + name_ + r"\}|\$" + name_ + r"\b", lambda _: value, command)
+        if len(command) > COMMAND_MAX_BYTES:
+            return command[:COMMAND_MAX_BYTES]
     return command
 
 def local_path(candidate):
@@ -62,6 +72,269 @@ def local_path(candidate):
         candidate = re.sub(r"^/([a-zA-Z])/", r"\1:/", candidate)
     return candidate
 
+def quoted_ranges(text):
+    ranges = []
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if char not in "'\"":
+            index += 1
+            continue
+        start, quote = index, char
+        index += 1
+        while index < len(text):
+            if quote == '"' and text[index] == "\\":
+                index += 2
+                continue
+            if text[index] == quote:
+                index += 1
+                break
+            index += 1
+        ranges.append((start, index))
+    return ranges
+
+def mask_quotes(text, ranges):
+    chars = list(text)
+    for start, end in ranges:
+        chars[start:end] = " " * (end - start)
+    return "".join(chars)
+
+def inside(ranges, pos):
+    return any(start <= pos < end for start, end in ranges)
+
+def read_token(text, pos):
+    length = len(text)
+    while pos < length and text[pos] in " \t":
+        pos += 1
+    if pos >= length:
+        return "", pos
+    if text[pos] in "'\"":
+        quote = text[pos]
+        pos += 1
+        start = pos
+        while pos < length:
+            if quote == '"' and text[pos] == "\\":
+                pos += 2
+                continue
+            if text[pos] == quote:
+                break
+            pos += 1
+        return text[start:pos], min(pos + 1, length)
+    start = pos
+    while pos < length and text[pos] not in " \t;&|<>()":
+        pos += 1
+    return text[start:pos], pos
+
+def tee_targets(text, masked):
+    targets = []
+    for match in re.finditer(r"\btee\b", masked):
+        tail = text[match.end():]
+        segment = re.split(r"[;&|]", tail, 1)[0]
+        try:
+            parts = shlex.split(segment)
+        except ValueError:
+            parts = []
+        for part in parts:
+            if part.startswith("-"):
+                continue
+            if FRONTEND_RE.search(part):
+                targets.append((part, match.start()))
+                break
+    return targets
+
+READ_ONLY_COMMANDS = {"grep", "rg", "ag", "ack", "echo", "printf", "git", "cat", "ls", "head", "tail", "sed", "awk"}
+
+def tokenize_chunk(text):
+    try:
+        lexer = shlex.shlex(text, posix=True, punctuation_chars=True)
+        lexer.whitespace_split = True
+        return list(lexer)
+    except ValueError:
+        return []
+
+def shell_segments(text):
+    # Split on shell operators outside quotes, and keep each segment's start offset.
+    ranges = quoted_ranges(text)
+    masked = mask_quotes(text, ranges)
+    segments = []
+    start = 0
+    for match in re.finditer(r"[;&|]+|\n", masked):
+        chunk = text[start:match.start()]
+        if chunk.strip():
+            segments.append((tokenize_chunk(chunk), start + len(chunk) - len(chunk.lstrip())))
+        start = match.end()
+    chunk = text[start:]
+    if chunk.strip():
+        segments.append((tokenize_chunk(chunk), start + len(chunk) - len(chunk.lstrip())))
+    return segments
+
+def segment_command(text, pos, ranges):
+    masked = mask_quotes(text, ranges)
+    start = 0
+    for match in re.finditer(r"[;&|]+|\n", masked[:pos]):
+        start = match.end()
+    token, _ = read_token(text, start)
+    return os.path.basename(token)
+
+def command_index(tokens):
+    index = 0
+    while index < len(tokens) and (ASSIGN_TOKEN_RE.match(tokens[index]) or tokens[index] in SHELL_KEYWORDS):
+        index += 1
+    return index
+
+def sed_files(args):
+    in_place = False
+    scripts = 0
+    files = []
+    dynamic = False
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg in ("-e", "--expression"):
+            index += 1
+            scripts += 1
+        elif arg in ("-f", "--file"):
+            index += 1
+            scripts += 1
+        elif arg.startswith("--in-place"):
+            in_place = True
+        elif arg.startswith("-") and not arg.startswith("--") and "i" in arg[1:]:
+            in_place = True
+        elif arg.startswith("-"):
+            pass
+        elif scripts == 0:
+            scripts += 1
+        else:
+            files.append(arg)
+            dynamic = dynamic or "$" in arg
+        index += 1
+    return (files if in_place else []), dynamic
+
+def perl_files(args):
+    in_place = False
+    has_script = False
+    expect_script = False
+    files = []
+    dynamic = False
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg == "-e":
+            has_script = True
+            expect_script = True
+        elif arg.startswith("-") and not arg.startswith("--"):
+            flags = arg[1:]
+            if "i" in flags:
+                in_place = True
+            if "e" in flags:
+                has_script = True
+                expect_script = True
+        elif arg.startswith("--"):
+            pass
+        elif expect_script:
+            expect_script = False
+        elif has_script:
+            files.append(arg)
+            dynamic = dynamic or "$" in arg
+        else:
+            has_script = True
+        index += 1
+    return (files if in_place else []), dynamic
+
+def copy_files(tokens):
+    name = tokens[0]
+    args = tokens[1:]
+    target_dir = ""
+    positional = []
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg in ("-t", "--target-directory"):
+            index += 1
+            if index < len(args):
+                target_dir = args[index]
+        elif arg.startswith("--target-directory="):
+            target_dir = arg.split("=", 1)[1]
+        elif arg.startswith("-"):
+            pass
+        else:
+            positional.append(arg)
+        index += 1
+    targets = []
+    if target_dir:
+        targets = [os.path.join(target_dir, os.path.basename(path))
+                   for path in positional if FRONTEND_RE.search(path)]
+    elif len(positional) >= 2:
+        destination = positional[-1]
+        sources = positional[:-1]
+        if FRONTEND_RE.search(destination):
+            targets = [destination]
+        elif name == "cp":
+            targets = [os.path.join(destination, os.path.basename(path))
+                       for path in sources if FRONTEND_RE.search(path)]
+    dynamic = any("$" in path for path in positional)
+    return targets, dynamic
+
+def inplace_targets(text, base_at):
+    targets = []
+    dynamic = False
+    for tokens, start in shell_segments(text):
+        index = command_index(tokens)
+        if index >= len(tokens):
+            continue
+        name = os.path.basename(tokens[index])
+        if name == "sed":
+            files, is_dynamic = sed_files(tokens[index + 1:])
+        elif name == "perl":
+            files, is_dynamic = perl_files(tokens[index + 1:])
+        elif name in ("cp", "mv"):
+            files, is_dynamic = copy_files(tokens[index:])
+        else:
+            continue
+        dynamic = dynamic or is_dynamic
+        targets += [(path, start) for path in files]
+    return targets, dynamic
+
+def write_call_targets(text, ranges):
+    targets = []
+    dynamic = False
+    for pattern in WRITE_ARG_RES:
+        for match in pattern.finditer(text):
+            if inside(ranges, match.start()) and segment_command(text, match.start(), ranges) in READ_ONLY_COMMANDS:
+                continue
+            literal = LITERAL_ARG_RE.match(match.group(1).strip())
+            if not literal:
+                dynamic = True
+            elif FRONTEND_RE.search(literal.group(2)):
+                targets.append((literal.group(2), match.start()))
+    return targets, dynamic
+
+def write_target_in(text, run_dir=None):
+    # run_dir is the cd a script file runs under. A command resolves each path against its own cd.
+    def base_at(pos):
+        return dir_at(text, pos) if run_dir is None else run_dir
+    ranges = quoted_ranges(text)
+    masked = mask_quotes(text, ranges)
+    targets = []
+    for match in re.finditer(r">>?|&>", masked):
+        token, _ = read_token(text, match.end())
+        if token:
+            targets.append((token, match.start()))
+    targets += tee_targets(text, masked)
+    inplace, inplace_dynamic = inplace_targets(text, base_at)
+    calls, call_dynamic = write_call_targets(text, ranges)
+    targets += inplace + calls
+    dynamic = inplace_dynamic or call_dynamic
+    for target, pos in targets:
+        if FRONTEND_RE.search(target) and outside_temp(target, base_at(pos)):
+            return target
+    if dynamic:
+        for token in re.findall(r"[^\s;&|<>'\"()]+", text):
+            mention = BASH_EXT_MENTION_RE.search(token)
+            if mention and not TEMP_PATH_RE.search(token):
+                return "(script that writes *%s)%s" % (mention.group(0), mention.group(0))
+    return ""
+
 def script_sources(command, cwd):
     # (text, run folder) of each script file the command runs, read from disk when it exists.
     sources = []
@@ -69,6 +342,8 @@ def script_sources(command, cwd):
         base = dir_at(command, match.start())
         script = local_path(match.group(1))
         candidate = script if os.path.isabs(script) else os.path.join(base or cwd, script)
+        if TEST_SCRIPT_RE.search(candidate):
+            continue
         try:
             if os.path.isfile(candidate) and os.path.getsize(candidate) <= SCRIPT_MAX_BYTES:
                 with open(candidate, encoding="utf-8", errors="ignore") as handle:
@@ -77,47 +352,9 @@ def script_sources(command, cwd):
             continue
     return sources
 
-# The path argument of each write call in a script. Only that argument is a target, so a script that reads
-# src/A.tsx and writes out.json is not gated.
-WRITE_ARG_RES = [
-    re.compile(r"(?:writeFileSync|writeFile|appendFileSync)\(\s*([^,)]*)"),
-    re.compile(r"(\S+?)\.write_text\("),
-    re.compile(r"\bopen\(\s*([^,)]*),\s*['\"][wa]"),
-]
-# A quoted literal, bare or inside Path(...). Anything else is built at run time.
-LITERAL_ARG_RE = re.compile(r"^(?:\w+\()?(['\"])([^'\"$+`{}]*)\1\)?$")
-
-def write_target_in(text, run_dir=None):
-    # run_dir is the cd a script file runs under. A command resolves each path against its own cd.
-    def base_at(pos):
-        return dir_at(text, pos) if run_dir is None else run_dir
-    targets = []
-    dynamic = False
-    for pattern in BASH_TARGET_RES:
-        targets += [(match.group(1), base_at(match.start())) for match in pattern.finditer(text)]
-    for match in IN_PLACE_RE.finditer(text):
-        args = match.group(1)
-        targets += [(found.group(1), base_at(match.start())) for found in BASH_ANY_PATH_RE.finditer(args)]
-        dynamic = dynamic or "$" in args
-    for pattern in WRITE_ARG_RES:
-        for match in pattern.finditer(text):
-            literal = LITERAL_ARG_RE.match(match.group(1).strip())
-            if not literal:
-                dynamic = True
-            elif re.search(BASH_EXT + "$", literal.group(2), re.I):
-                targets.append((literal.group(2), base_at(match.start())))
-    for target, base in targets:
-        if outside_temp(target, base):
-            return target
-    if dynamic:
-        mention = BASH_EXT_MENTION_RE.search(TEMP_TOKEN_RE.sub(" ", text))
-        if mention:
-            return "(script that writes *" + mention.group(0) + ")" + mention.group(0)
-    return ""
-
 def write_target(command, cwd):
     # The frontend file a Bash command writes, or "" when it writes none.
-    command = expand_variables(command)
+    command = expand_variables(command)[:COMMAND_MAX_BYTES]
     target = write_target_in(command)
     if target:
         return target

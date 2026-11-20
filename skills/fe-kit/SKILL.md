@@ -176,6 +176,7 @@ Files in scope:
 
 ## Hard Rules
 
+- Before a commit, follow `references/handoff.md`: write `.fe-kit/handoff.md`, ask the user the Q&A in chat, and let the user approve it. Do not approve your own handoff; an edit after approval invalidates it.
 - Before adding or changing code, follow `rules/reuse-duplication.md`.
 - A different job goes in a new file, per `rules/modules.md`. Do not grow a file that already has one job.
 - Comments follow `rules/comments.md`.

@@ -1,5 +1,72 @@
 # Changelog
 
+## 1.33.0
+
+The Fowler catalog covers intra-class moves, but a frontend refactor hits moves the catalog cannot name: a prop drilled through two levels, an effect that exists only to sync state with state, a serial `await` pair that is not a real dependency, a `useEffect` fetch reimplemented per screen. Each was fixed ad hoc because no file named the move or its guard.
+
+- New `references/frontend-moves.md`: 15 FE-shaped moves (FM1–FM15) in Fowler's move format — signal, mechanics, and a "Đừng khi" guard. Four groups: state placement (lift state up, colocate state down, prop drilling → composition/context, effect → derived state), component split axes (split by change axis not by code kind, extract custom hook, extract list item, effect → event handler), async and fetch (then-chains → async/await, serial → parallel where the dependency is not real, fetch-in-effect → the repo's data layer, unstable deps → stable), and data/render (repeated JSX → typed record + map, abort/cleanup for async effects, code-split at route boundaries). Each move says when NOT to apply it — the guard is the point.
+- `playbooks/refactor-ui.md` step 7 sends FE-shaped cures to the new catalog alongside `patterns.md`.
+- `references/fowler-checklist.md` points at the new file.
+- Version 1.33.0 in `.devin-plugin/plugin.json`, `.claude-plugin/plugin.json`, `package.json`, and both places in `marketplace.json`.
+- `scripts/devin_gate.py` ports the pre-commit handoff gate: `git commit` over exec is blocked until `.fe-kit/handoff.md` is written, Q&A'd in chat, and approved by the user, matching the Claude gate since upstream 1.29.0.
+
+## 1.32.0
+
+Five checklists name and score problems, but when a FAIL's cure is bigger than a tidying there was no map to the named solutions. A refactor fixing repeated switches had to reinvent what is called a State pattern, and there was no guard checking whether the pattern was even needed — an unneeded pattern is Speculative Generality, not a cure.
+
+- New `references/patterns.md`: a forward lookup `tín hiệu → pattern → áp khi / đừng áp khi` from *Head First Design Patterns*, written for JS. Four groups — variant behavior (Strategy, State, Template Method, param injection), object creation (Factory Method, Abstract Factory, Singleton), object relations (Observer, Decorator, Adapter, Facade, Command, Proxy, Composite), and the patterns JS already absorbed (Iterator, Observer, Singleton, MVC). Every row has a "Đừng áp khi" column: the guard is the point — a pattern applied where the problem does not exist yet is SM17/O7.
+- `playbooks/refactor-ui.md` step 7 sends cures bigger than a tidying to `references/patterns.md` before proposing them.
+- `references/fowler-checklist.md` points at the new file.
+- Version 1.32.0 in `plugin.json`, `package.json`, and both places in `marketplace.json`.
+
+## 1.31.0
+
+Four checklists score production code, and `REVIEW_CHECKLIST.md`'s T group checks that tests exist — but nothing scored the tests themselves. A suite could exist, be deterministic, go red when behavior breaks, and still pin every assertion to implementation details: a refactor that keeps behavior would break it everywhere, teaching the team to ignore red tests. That is Khorikov's resistance-to-refactoring failure, the costliest test failure mode there is.
+
+- New `references/test-checklist.md`: 16 items (U1–U16) from *Unit Testing: Principles, Practices, and Patterns*. U1–U4 are the four pillars as FAIL tests; U5–U7 are mock hygiene (mock only unmanaged/out-of-process dependencies, never assert on stubs, verify at the system boundary); U8–U12 are the anti-patterns (private-method testing, test-only code in production, tautological expectations, hidden time/randomness); U13–U16 are the integration and DB rules (real databases over in-memory, never mock repositories, independent fixtures, no coverage-chasing asserts). Each item cross-references its twin in `REVIEW_CHECKLIST.md` or the other checklists so a finding counts once.
+- `playbooks/refactor-ui.md` step 7 reads it when the work adds or changes tests — the other four score the production code, this one scores the suite.
+- `references/fowler-checklist.md` points at the new file.
+- Version 1.31.0 in `plugin.json`, `package.json`, and both places in `marketplace.json`.
+
+## 1.30.0
+
+Three checklists score the code a refactor produces, but none governs how the work is done. A diff could land every FAIL it touched and still mix tidy commits with behavior changes, tidy code about to be deleted, or edit inside a tangle it could not read — the failure modes Kent Beck's *Tidy First?* exists for.
+
+- New `references/tidy-checklist.md`: T1–T15 are the fifteen tidyings (guard clauses, explaining variables/constants, one pile, new-interface-old-implementation, chunk statements, …) written as FAIL tests; T16–T21 are the managing rules — separate tidy commits from behavior commits, timebox tidying chains, batch against review cost, tidy at natural pauses, get untangled by tidying first instead of editing inside the tangle, and the book's titular question: tidy only where the next change will pass. Each item cross-references its twin in the other checklists so a finding counts once.
+- `playbooks/refactor-ui.md` step 7 reads it after the other three: the first three score the code, this one governs how the tidying lands.
+- `references/fowler-checklist.md` points at the new file.
+- Version 1.30.0 in `plugin.json`, `package.json`, and both places in `marketplace.json`.
+
+## 1.29.0
+
+AI writes code faster than the person who has to maintain it can follow. A change could pass every gate and still leave the user unable to explain the logic or debug it without the AI. The last step before a commit was missing.
+
+- New `references/handoff.md`: `.fe-kit/handoff.md` with six sections a person reads — Logic, Implementation, Decisions, Debug without AI, Risks, Q&A. The implementation section names every changed file and the function that owns each step. The debug section gives the reproduce command, the file:line to watch, what each failure means, how to verify a fix, and the rollback. The Q&A is 3–5 questions about the state holder, the easy-to-miss branch, and the check that proves a fix; the user's answers are recorded.
+- New `scripts/handoff.py`: `check` reports a missing section, an unnamed staged file, a missing approval, or an approval older than a staged file; `approve` stamps `Confirmed-by`/`Confirmed-at` and refuses an incomplete handoff. The agent does not approve its own handoff.
+- `scripts/fe-gate.py`: a `git commit` (including `-a` and `-C`) is denied until the handoff covers every staged source file and the user approved it. A docs-only commit passes. An edit after approval invalidates it.
+- `scripts/project_config.py`: new `handoff` key (`required` | `off`), including the YAML boolean an unquoted `off` produces.
+- `rules/fe-implementation.md`, `skills/fe-kit/SKILL.md`: the pre-commit handoff and the user's approval are part of the workflow.
+- Tests: new `test_handoff.py` 10 cases; `test_fe_gate.py` 223 cases, including the commit gate (no handoff, no approval, approved, stale, off).
+- Version 1.29.0 in `plugin.json`, `package.json`, and both places in `marketplace.json`.
+
+## 1.28.0
+
+Two Fowler checklists can name and score smells, but neither asks Ousterhout's question: whether a module is deep — whether its interface costs less than the complexity it hides. A refactor could remove every named smell and still ship a shallow module, an interface that pushes work up to callers, or an error case a simpler contract would have defined away.
+
+- New `references/posd-checklist.md`: 16 items (O1–O16) from *A Philosophy of Software Design* — the red flags plus the principles that check out in a diff. Covers items the Fowler lists do not name: temporal decomposition (a module split that mirrors execution order leaks the shared knowledge through every interface), pass-through variables, overexposed interfaces, pull-complexity-down, define-errors-out-of-existence, implementation details contaminating an interface, and hard-to-describe units. Each item cross-references its Fowler twin so a finding counts once.
+- `playbooks/refactor-ui.md` step 7 reads `posd-checklist.md` after the two Fowler checklists, for the depth questions those two do not ask.
+- `references/fowler-checklist.md` points at the new file.
+- Version 1.28.0 in `plugin.json`, `package.json`, and both places in `marketplace.json`.
+
+## 1.27.0
+
+A reviewer could score structure yet had no index to name what it found. `fowler-checklist.md` orders items by refactoring family (F1–F6), so mapping a symptom to a Fowler smell name and its cure meant knowing the catalog by heart — and `playbooks/refactor-ui.md` only scored code after the edits, so a refactor plan did not name the smells it was removing.
+
+- New `references/smells-checklist.md`: the 24 chapter-3 smells (SM1–SM24) as a detection index. Each item names the symptom, the FAIL test, the cure refactor, and the equivalent item in `fowler-checklist.md` or `REVIEW_CHECKLIST.md` so a finding counts once. Written for the `smell → refactor → vì sao` finding format.
+- `playbooks/refactor-ui.md` step 7 reads `smells-checklist.md` then `fowler-checklist.md`: the first names smells on the code the refactor will touch, before the first edit; the second scores what it touched.
+- `references/fowler-checklist.md` points at the new index.
+- Version 1.27.0 in `plugin.json`, `package.json`, and both places in `marketplace.json`.
+
 ## 1.26.1
 
 Devin runs plugin hooks without `CLAUDE_PLUGIN_ROOT` in the environment, so every `hooks/hooks.json` command resolved to `/scripts/fe-gate.sh` and failed with `Command exited with code 127` on each prompt and tool call. The Devin host injects `DEVIN_PLUGIN_ROOT` for plugin hooks (with `PLUGIN_ROOT` as a further fallback).
@@ -12,6 +79,39 @@ Devin runs plugin hooks without `CLAUDE_PLUGIN_ROOT` in the environment, so ever
 - Devin CLI host: `.devin-plugin/plugin.json`, root `hooks.json`, `scripts/devin-gate.sh`, and `scripts/devin_gate.py`. The Devin payload carries the prompt and `prompt_id`, so the gate keys labels by request without reading a transcript. Block uses `{"decision": "block"}`; `PreCompact` has no Devin equivalent, so `PostCompaction` and `SessionStart` on resume re-inject the pointer. Rules ship `trigger: always_on`; the reviewer agent declares `allowed-tools` for Devin next to `tools`/`model` for Claude Code.
 - `rules/review-diff.md`, `skills/fe-kit/SKILL.md`, and `agents/reviewer.md` name the Devin reviewer path (`fe-kit:reviewer` subagent).
 - `scripts/test_versions.py` also checks `.devin-plugin/plugin.json`.
+
+## 1.26.0
+
+The 1.25.2 fallback still missed the case it was written for: `request_scope()` follows physical line order, so when the host appended the prompt line after the echo entry, the echo fell outside the request, and the state key (a hash of the request text) named a different request. The same text in a later prompt reopened an old declaration, and a half-written transcript line or an echo whose `tool_result` failed counted as a declaration.
+
+- Request identity comes from the host, not the text. `payload_prompt_id()` reads `prompt_id` (present on every Claude Code hook call of a turn); the state is keyed by it, falling back to the entry `promptId`/`uuid`, then the text for hosts without either. A later prompt with the same text is a new request.
+- Transcript declarations are matched by prompt id and count only after a non-error `tool_result`, so an echo the host denied or never ran is not a declaration, and a prompt flushed after the echo still matches. Entries without ids keep the physical request scope.
+- `parse_transcript()` skips a line that is not complete JSON; a torn assistant line no longer becomes authored text.
+- `label_store.declared_lines()` reconstructs what echo/printf prints: unquoted labels, a `cd ... &&` prefix, assignments, and `2>/dev/null` count. `printf` binds `%s` in order. Backticks, substitutions, pipes, other redirects, and unresolved `printf` specs are rejected with a reason instead of silently; the Bash hook emits that reason when a label-looking command is not a declaration.
+- Owner placeholders are checked after stripping brackets: `(none)`, `see below`, `TBD2`, `%s`, `$VAR` do not count. A pipe skips only a real table row, so `Runtime owner: OrderForm|useOrder` counts, while a menu of decision words still does not.
+- `CONTINUATION_RE` accepts `ok nhé`, `oki`, `cứ tiếp tục`, `làm tiếp đi`, `tiếp nhé`, `được nhé`. Host notices (`<bash-input>`, `<total_tokens>`, …) are searched after reminders are stripped and no longer start a request; a slash command's `<command-args>` is the person text; an image-only message does start a request.
+- `label_store.save()` takes a lock and replaces the file atomically, so two parallel echoes do not lose each other.
+- A workflow subagent transcript under `subagents/workflows/<run>/agent-<id>.jsonl` is found. `parse_transcript()` caches by mtime and size, and the flush retry re-parses only when the file changed.
+- `PostToolUse` now covers `Bash`, so a file written through Bash gets the conflict-marker and repo-rule checks. `run_repo_rules()` runs `.claude/rules.sh` through `sh` on Windows. `load_rule()` returns empty text on a missing or unreadable rule file instead of exiting 1. `fe-gate.sh` probes `python3` before `exec`, so a Windows Store alias or the Xcode shim cannot disable the hook silently.
+- `scripts/bash_target.py`: the runner boundary no longer matches `py`/`tsx` inside a path (`git add a.py b.py` is not a script run); redirects, tee, and write calls are read outside quotes; `sed -i`, `perl -i`, `cp`, and `mv` are parsed by token, so `s|a|b|`, scripts with `;`, directory destinations, and `-t` work; a test script's fixture writes are not gated.
+- `scripts/wording.py`: a literal under a code-named property or assignment is code even inside a copy call (`setError("email", …)`, `showToast("success", …)`, `const error = …`); `${count} items` and `intl.formatMessage`/`defaultMessage` are copy.
+- Tests: `test_fe_gate.py` 218 cases, including a prompt flushed after the echo, the same text under a new prompt id, a torn line, a denied echo, unquoted/cd/redirect/backtick declarations, placeholders, a pipe in a value, continuation variants, host notices, image-only messages, and a workflow subagent echo. New `test_bash_target.py` 18 cases. `test_wording.py` 85 cases.
+- Version 1.26.0 in `plugin.json`, `package.json`, and both places in `marketplace.json`.
+
+## 1.25.2
+
+An `echo` declaration could be lost even though the agent ran it. The declaration was saved under a hash of the latest user text read when the echo hook ran. When the host had not flushed the current user message to the transcript yet, that hash named the previous request, so the edit hook looked up a different entry and denied the edit with the Reuse Decision message.
+
+- `scripts/fe-gate.py`: `authored_entries()` also reads declaration `echo` commands from the assistant's Bash `tool_use` blocks (`entry_bash_commands`), so `request_scope()` and `scoped_entries()` see a declaration the agent already ran at gate time, even when the state entry was keyed by an unflushed request. A declaration before the latest user message still does not count, and a main-agent edit still does not see a subagent's declaration.
+- `scripts/test_fe_gate.py`: 3 new cases; 2 fail on 1.25.1 (an echo that exists only in the transcript, and an echo in the same assistant message as the edit). The third, an echo before a newer request, already denied and is a guard for scope trimming.
+- Version 1.25.2 in `plugin.json`, `package.json`, and both places in `marketplace.json`.
+
+## 1.25.1
+
+Devin runs plugin hooks without `CLAUDE_PLUGIN_ROOT` in the environment, so every `hooks/hooks.json` command resolved to `/scripts/fe-gate.sh` and failed with `Command exited with code 127` on each prompt and tool call. The Devin host injects `DEVIN_PLUGIN_ROOT` for plugin hooks (with `PLUGIN_ROOT` as a further fallback).
+
+- `hooks/hooks.json`: each command is now `sh -c 'R="${DEVIN_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}}"; [ -f "$R/scripts/fe-gate.sh" ] || R=$(cygpath -u "$R" 2>/dev/null || printf %s "$R"); [ -f "$R/scripts/fe-gate.sh" ] || exit 0; exec sh "$R/scripts/fe-gate.sh"'`. The first env var that exists wins, `cygpath` still normalizes the root on Git Bash for Claude Code on Windows, and a root that yields no script exits 0 instead of surfacing a 127 hook failure.
+- Version 1.25.1 in `plugin.json`, `package.json`, and both places in `marketplace.json`.
 
 ## 1.25.0
 
