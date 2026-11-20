@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$(cygpath -u '${CLAUDE_PLUGIN_ROOT}' 2>/dev/null || printf %s '${CLAUDE_PLUGIN_ROOT}')/scripts/fe-gate.sh\""
+            "command": "sh -c 'R=\"${DEVIN_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}}\"; [ -f \"$R/scripts/fe-gate.sh\" ] || R=$(cygpath -u \"$R\" 2>/dev/null || printf %s \"$R\"); [ -f \"$R/scripts/fe-gate.sh\" ] || exit 0; exec sh \"$R/scripts/fe-gate.sh\"'"
           }
         ]
       }
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$(cygpath -u '${CLAUDE_PLUGIN_ROOT}' 2>/dev/null || printf %s '${CLAUDE_PLUGIN_ROOT}')/scripts/fe-gate.sh\""
+            "command": "sh -c 'R=\"${DEVIN_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}}\"; [ -f \"$R/scripts/fe-gate.sh\" ] || R=$(cygpath -u \"$R\" 2>/dev/null || printf %s \"$R\"); [ -f \"$R/scripts/fe-gate.sh\" ] || exit 0; exec sh \"$R/scripts/fe-gate.sh\"'"
           }
         ]
       }
@@ -27,7 +27,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$(cygpath -u '${CLAUDE_PLUGIN_ROOT}' 2>/dev/null || printf %s '${CLAUDE_PLUGIN_ROOT}')/scripts/fe-gate.sh\""
+            "command": "sh -c 'R=\"${DEVIN_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}}\"; [ -f \"$R/scripts/fe-gate.sh\" ] || R=$(cygpath -u \"$R\" 2>/dev/null || printf %s \"$R\"); [ -f \"$R/scripts/fe-gate.sh\" ] || exit 0; exec sh \"$R/scripts/fe-gate.sh\"'"
           }
         ]
       }
@@ -37,7 +37,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$(cygpath -u '${CLAUDE_PLUGIN_ROOT}' 2>/dev/null || printf %s '${CLAUDE_PLUGIN_ROOT}')/scripts/fe-gate.sh\""
+            "command": "sh -c 'R=\"${DEVIN_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}}\"; [ -f \"$R/scripts/fe-gate.sh\" ] || R=$(cygpath -u \"$R\" 2>/dev/null || printf %s \"$R\"); [ -f \"$R/scripts/fe-gate.sh\" ] || exit 0; exec sh \"$R/scripts/fe-gate.sh\"'"
           }
         ]
       }
@@ -48,7 +48,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$(cygpath -u '${CLAUDE_PLUGIN_ROOT}' 2>/dev/null || printf %s '${CLAUDE_PLUGIN_ROOT}')/scripts/fe-gate.sh\"",
+            "command": "sh -c 'R=\"${DEVIN_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}}\"; [ -f \"$R/scripts/fe-gate.sh\" ] || R=$(cygpath -u \"$R\" 2>/dev/null || printf %s \"$R\"); [ -f \"$R/scripts/fe-gate.sh\" ] || exit 0; exec sh \"$R/scripts/fe-gate.sh\"'",
             "timeout": 180
           }
         ]

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.25.1
+
+Devin runs plugin hooks without `CLAUDE_PLUGIN_ROOT` in the environment, so every `hooks/hooks.json` command resolved to `/scripts/fe-gate.sh` and failed with `Command exited with code 127` on each prompt and tool call. The Devin host injects `DEVIN_PLUGIN_ROOT` for plugin hooks (with `PLUGIN_ROOT` as a further fallback).
+
+- `hooks/hooks.json`: each command is now `sh -c 'R="${DEVIN_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}}"; [ -f "$R/scripts/fe-gate.sh" ] || R=$(cygpath -u "$R" 2>/dev/null || printf %s "$R"); [ -f "$R/scripts/fe-gate.sh" ] || exit 0; exec sh "$R/scripts/fe-gate.sh"'`. The first env var that exists wins, `cygpath` still normalizes the root on Git Bash for Claude Code on Windows, and a root that yields no script exits 0 instead of surfacing a 127 hook failure.
+- Version 1.25.1 in `plugin.json`, `package.json`, and both places in `marketplace.json`.
+
 ## 1.25.0
 
 On Windows, every `hooks.json` command failed with `bash: -c: line 1: unexpected EOF while looking for matching '"'` and the runtime blocked each prompt and tool call. A hook runner spawns `sh -c '<command>'` through Git Bash (MSYS2). MSYS2 converts a `-c` argument that looks like a Windows or POSIX path, and the conversion drops the closing double quote, so bash sees an unterminated string. `MSYS2_ARG_CONV_EXCL` cannot repair it from inside the string: it only fixes the quote, then `fe-gate.sh` passes its `/c/...` script directory to a native `python.exe` that cannot open it.
