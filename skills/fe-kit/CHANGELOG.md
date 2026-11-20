@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.28.0
+
+Two Fowler checklists can name and score smells, but neither asks Ousterhout's question: whether a module is deep — whether its interface costs less than the complexity it hides. A refactor could remove every named smell and still ship a shallow module, an interface that pushes work up to callers, or an error case a simpler contract would have defined away.
+
+- New `references/posd-checklist.md`: 16 items (O1–O16) from *A Philosophy of Software Design* — the red flags plus the principles that check out in a diff. Covers items the Fowler lists do not name: temporal decomposition (a module split that mirrors execution order leaks the shared knowledge through every interface), pass-through variables, overexposed interfaces, pull-complexity-down, define-errors-out-of-existence, implementation details contaminating an interface, and hard-to-describe units. Each item cross-references its Fowler twin so a finding counts once.
+- `playbooks/refactor-ui.md` step 7 reads `posd-checklist.md` after the two Fowler checklists, for the depth questions those two do not ask.
+- `references/fowler-checklist.md` points at the new file.
+- Version 1.28.0 in `plugin.json`, `package.json`, and both places in `marketplace.json`.
+
+## 1.27.0
+
+A reviewer could score structure yet had no index to name what it found. `fowler-checklist.md` orders items by refactoring family (F1–F6), so mapping a symptom to a Fowler smell name and its cure meant knowing the catalog by heart — and `playbooks/refactor-ui.md` only scored code after the edits, so a refactor plan did not name the smells it was removing.
+
+- New `references/smells-checklist.md`: the 24 chapter-3 smells (SM1–SM24) as a detection index. Each item names the symptom, the FAIL test, the cure refactor, and the equivalent item in `fowler-checklist.md` or `REVIEW_CHECKLIST.md` so a finding counts once. Written for the `smell → refactor → vì sao` finding format.
+- `playbooks/refactor-ui.md` step 7 reads `smells-checklist.md` then `fowler-checklist.md`: the first names smells on the code the refactor will touch, before the first edit; the second scores what it touched.
+- `references/fowler-checklist.md` points at the new index.
+- Version 1.27.0 in `plugin.json`, `package.json`, and both places in `marketplace.json`.
+
 ## 1.25.2
 
 An `echo` declaration could be lost even though the agent ran it. The declaration was saved under a hash of the latest user text read when the echo hook ran. When the host had not flushed the current user message to the transcript yet, that hash named the previous request, so the edit hook looked up a different entry and denied the edit with the Reuse Decision message.

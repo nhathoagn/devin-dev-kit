@@ -4,6 +4,8 @@ Checklist maintainability theo 6 nhóm refactor của Fowler (*Refactoring*, 2nd
 
 Checklist này chỉ chấm **cấu trúc**. Correctness, security, test, perf nằm ở `REVIEW_CHECKLIST.md` (nhóm C, SEC, P, T). Một diff có thể PASS hết đây mà vẫn có bug — và ngược lại, code FAIL cấu trúc vẫn có thể đúng. Hai checklist đi kèm, không thay thế nhau. Verdict borderline: ghi FAIL kèm "borderline" trong câu why — không có verdict thứ tư; khi do dự giữa PASS và FAIL, chọn FAIL.
 
+`smells-checklist.md` đi theo chiều ngược lại: index 24 mùi của ch.3 (SM1–SM24) để phát hiện và đặt tên — file này chấm theo nhóm refactor, file kia nhìn theo triệu chứng. `posd-checklist.md` thêm lăng kính Ousterhout (O1–O16): độ sâu module, pull-complexity-down, define-errors-out — các câu hỏi hai file Fowler không hỏi.
+
 Comment viết theo cấu trúc `smell → refactor → vì sao`, ví dụ:
 
 > `shipClassState` đọc 4 field của `entry`, ghi 1 — Feature Envy (F2). Đề xuất Move Method sang `ShipEntry`.
