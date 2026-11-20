@@ -445,6 +445,25 @@ def run_special():
     check("main agent edit does not see a subagent declaration", edit(own), "deny")
     check("subagent edit sees its own declaration", edit(own, agent_id="sub2"), "allow")
 
+    # The echo is also read from the transcript's Bash tool_use, so a state entry keyed by a request
+    # the host had not flushed yet cannot drop a declaration the agent already ran.
+    def bash_echo(command):
+        return {"type": "tool_use", "id": "tool-1", "name": "Bash", "input": {"command": command}}
+    def tools(*blocks):
+        return {"type": "assistant", "message": {"role": "assistant", "content": list(blocks)}}
+    DECLARE_ECHO = 'echo "Runtime owner: Da1020Columns" "Decision: reuse"'
+    transcript_only = write_transcript("declare-transcript.jsonl", [U("thêm cột vào DA1020"), tools(bash_echo(DECLARE_ECHO))])
+    check("session: a transcript echo counts without a state entry",
+          decision(call_gate(dict(base, transcript_path=transcript_only, session_id="cc-transcript"))), "allow")
+    stale = write_transcript("declare-transcript-old.jsonl",
+                             [U("thêm cột vào DA1020"), tools(bash_echo(DECLARE_ECHO)), U("giờ sửa màn DA1021 header")])
+    check("session: a transcript echo before the latest request does not count",
+          decision(call_gate(dict(base, transcript_path=stale, session_id="cc-stale"))), "deny")
+    parallel = write_transcript("declare-parallel.jsonl", [U("thêm cột vào DA1020"), tools(
+        bash_echo(DECLARE_ECHO), {"type": "tool_use", "id": "tool-2", "name": "Edit", "input": {"file_path": "src/B.tsx"}})])
+    check("session: an echo in the same message as the edit counts",
+          decision(call_gate(dict(base, transcript_path=parallel, session_id="cc-parallel"))), "allow")
+
     # A host notice is a user entry that no person typed, so it does not start a new request.
     notice = "<task-notification>\n<task-id>a1</task-id>\n<status>completed</status>\n</task-notification>"
     check("labels survive a task notification",

@@ -170,6 +170,22 @@ def entry_texts(entry):
             texts.append(block.get("thinking") or "")
     return texts
 
+def entry_bash_commands(entry):
+    message = entry.get("message")
+    if not isinstance(message, dict):
+        return []
+    content = message.get("content")
+    if not isinstance(content, list):
+        return []
+    commands = []
+    for block in content:
+        if not isinstance(block, dict) or block.get("type") != "tool_use" or block.get("name") != "Bash":
+            continue
+        tool_input = block.get("input")
+        if isinstance(tool_input, dict):
+            commands.append(tool_input.get("command") or "")
+    return commands
+
 # The host writes these as user entries, but no person typed them. They do not start a request.
 HOST_NOTICE_RE = re.compile(
     r"^\s*<(?:task-notification|command-name|command-message|command-args|local-command-stdout|local-command-stderr)>"
@@ -201,6 +217,13 @@ def authored_entries(path, roles):
             text = REMINDER_RE.sub("", text).replace(DENY_REASON, "").replace(DENY_BUG_REASON, "")
             if text.strip():
                 entries.append((role, text))
+        if role == "assistant":
+            # The echo command is authoritative at gate time, even when the state entry was keyed by a
+            # request text the host had not flushed yet.
+            for command in entry_bash_commands(entry):
+                declared = label_store.declared_lines(command) if label_store else []
+                if declared:
+                    entries.append(("declared", "\n".join(declared)))
     return entries
 
 def authored_texts(path, roles):

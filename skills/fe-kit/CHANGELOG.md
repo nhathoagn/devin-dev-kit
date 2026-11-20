@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.25.2
+
+An `echo` declaration could be lost even though the agent ran it. The declaration was saved under a hash of the latest user text read when the echo hook ran. When the host had not flushed the current user message to the transcript yet, that hash named the previous request, so the edit hook looked up a different entry and denied the edit with the Reuse Decision message.
+
+- `scripts/fe-gate.py`: `authored_entries()` also reads declaration `echo` commands from the assistant's Bash `tool_use` blocks (`entry_bash_commands`), so `request_scope()` and `scoped_entries()` see a declaration the agent already ran at gate time, even when the state entry was keyed by an unflushed request. A declaration before the latest user message still does not count, and a main-agent edit still does not see a subagent's declaration.
+- `scripts/test_fe_gate.py`: 3 new cases, each failing on 1.25.1: an echo that exists only in the transcript, an echo in the same assistant message as the edit, and an echo before a newer request, which stays denied.
+- Version 1.25.2 in `plugin.json`, `package.json`, and both places in `marketplace.json`.
+
 ## 1.25.1
 
 Devin runs plugin hooks without `CLAUDE_PLUGIN_ROOT` in the environment, so every `hooks/hooks.json` command resolved to `/scripts/fe-gate.sh` and failed with `Command exited with code 127` on each prompt and tool call. The Devin host injects `DEVIN_PLUGIN_ROOT` for plugin hooks (with `PLUGIN_ROOT` as a further fallback).
