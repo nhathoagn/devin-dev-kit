@@ -43,7 +43,7 @@ Nhãn người dùng gõ trong yêu cầu vẫn được tính. Payload không c
 
 ---
 
-## Nó chặn ba thứ
+## Nó chặn bốn thứ
 
 **Kiến trúc không có chủ.** Mỗi lần sửa file nguồn phải ghi `Runtime owner:` — component,
 hook, hay module nào thật sự giữ state và business rule. Không có nhãn, không có edit.
@@ -54,6 +54,14 @@ Bug fix còn bị hỏi: giá trị này đã có state hay prop nào giữ chư
 
 **Tác giả tự chấm bài mình.** Người viết diff không được review diff đó. Claude Code có
 agent `fe-kit:reviewer` read-only; omp dùng một context sạch chỉ nhận diff range và playbook.
+
+**Người đọc không debug được.** Trước `git commit`, agent phải viết `.fe-kit/handoff.md`:
+Logic, Implementation (từng file và hàm giữ bước nào), Decisions, Debug without AI (lệnh
+reproduce, file:line để xem, lỗi nghĩa là gì, cách xác nhận fix, rollback), Risks, Q&A.
+Agent hỏi bạn 3–5 câu về state holder, nhánh dễ sót và check chứng minh fix; câu trả lời
+được ghi lại. Bạn chạy lệnh approve trong `skills/fe-kit/references/handoff.md`; commit bị
+chặn đến lúc đó, và sửa file sau khi approve thì phải approve lại. Repo muốn tắt:
+`handoff: "off"` trong `.fe-kit/config.yaml`.
 
 ---
 

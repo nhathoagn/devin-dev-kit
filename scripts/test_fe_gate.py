@@ -380,7 +380,7 @@ def run_special():
     check("config repo: frontend prompt names .fe-kit/config.yaml and --mode author",
           "allow" if ".fe-kit/config.yaml" in config_out and "--mode author" in config_out else "deny", "allow")
     check("no-config repo: frontend prompt has no config line",
-          "allow" if ".fe-kit/config.yaml" not in prompt_out("thêm component OrderForm", no_config) else "deny", "allow")
+          "allow" if "This repo has .fe-kit/config.yaml" not in prompt_out("thêm component OrderForm", no_config) else "deny", "allow")
     check("review prompt always carries the project rules command",
           "allow" if "Project rules command: python3" in prompt_out("review diff trước commit", no_config)
           and "project_config.py" in prompt_out("review diff trước commit", no_config) else "deny", "allow")
@@ -414,6 +414,12 @@ def run_special():
     with open(continued, "a", encoding="utf-8") as handle:
         handle.write(json.dumps(U("ok")) + "\n")
     check("declaration survives a continuation reply", edit(continued), "allow")
+    for index, phrase in enumerate(("ok nhé", "oki", "cứ tiếp tục", "làm tiếp đi", "tiếp nhé", "được nhé")):
+        trial = write_transcript("declare-cont-%d.jsonl" % index, [U("thêm cột vào DA1020")])
+        declare(trial, 'echo "Runtime owner: Da1020Columns" "Decision: reuse"')
+        with open(trial, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(U(phrase)) + "\n")
+        check("declaration survives %r" % phrase, edit(trial), "allow")
 
     placeholder = write_transcript("declare-ph.jsonl", [U("thêm cột vào DA1020")])
     declare(placeholder, 'echo "Runtime owner: <the component or hook that runs B.tsx>" "Decision: <reuse|extend|feature-local|shared|n/a>"')
@@ -427,7 +433,21 @@ def run_special():
                            ("grep", 'grep -n "Runtime owner: A" "Decision: reuse" rules')):
         other = write_transcript("declare-%s.jsonl" % label, [U("thêm cột vào DA1020")])
         out = declare(other, command)
-        check("%s is not a declaration" % label, "allow" if out.strip() == "" and edit(other) == "deny" else "deny", "allow")
+        check("%s is rejected and says why" % label,
+              "allow" if "could not read a declaration" in out and edit(other) == "deny" else "deny", "allow")
+    unquoted = write_transcript("declare-unquoted.jsonl", [U("thêm cột vào DA1020")])
+    declare(unquoted, "echo Runtime owner: Da1020Columns Decision: reuse")
+    check("an unquoted echo is read as printed", edit(unquoted), "allow")
+    quiet = write_transcript("declare-quiet.jsonl", [U("thêm cột vào DA1020")])
+    declare(quiet, 'echo "Runtime owner: Da1020Columns" "Decision: reuse" 2>/dev/null')
+    check("a stdout redirect to /dev/null still declares", edit(quiet), "allow")
+    prefixed = write_transcript("declare-cd.jsonl", [U("thêm cột vào DA1020")])
+    declare(prefixed, 'cd /repo && echo "Runtime owner: Da1020Columns" "Decision: reuse"')
+    check("a cd prefix still declares", edit(prefixed), "allow")
+    backtick = write_transcript("declare-backtick.jsonl", [U("thêm cột vào DA1020")])
+    out = declare(backtick, 'echo "Runtime owner: `Da1020Columns`" "Decision: reuse"')
+    check("a backtick value is rejected and says why",
+          "allow" if "Backticks run a command" in out and edit(backtick) == "deny" else "deny", "allow")
     redirect = write_transcript("declare-redirect.jsonl", [U("thêm cột vào DA1020")])
     check("echo with labels into a .tsx file is gated", decision(declare(redirect, 'echo "Runtime owner: A" "Decision: reuse" > src/B.tsx')), "deny")
 
@@ -445,24 +465,87 @@ def run_special():
     check("main agent edit does not see a subagent declaration", edit(own), "deny")
     check("subagent edit sees its own declaration", edit(own, agent_id="sub2"), "allow")
 
-    # The echo is also read from the transcript's Bash tool_use, so a state entry keyed by a request
-    # the host had not flushed yet cannot drop a declaration the agent already ran.
-    def bash_echo(command):
-        return {"type": "tool_use", "id": "tool-1", "name": "Bash", "input": {"command": command}}
-    def tools(*blocks):
-        return {"type": "assistant", "message": {"role": "assistant", "content": list(blocks)}}
+    # The echo is also read from the transcript, matched by the host's prompt id and only after it ran.
+    def bash_echo(command, ident="tool-1"):
+        return {"type": "tool_use", "id": ident, "name": "Bash", "input": {"command": command}}
+    def assistant_with(prompt_id, *blocks):
+        entry = {"type": "assistant", "message": {"role": "assistant", "content": list(blocks)}}
+        entry["promptId"] = prompt_id
+        return entry
+    def user_prompt(text, prompt_id):
+        return {"type": "user", "promptId": prompt_id, "message": {"role": "user", "content": text}}
+    def bash_result(ident, is_error=False):
+        return {"type": "user", "message": {"role": "user", "content": [
+            {"type": "tool_result", "tool_use_id": ident, "is_error": is_error, "content": "ok"}]}}
     DECLARE_ECHO = 'echo "Runtime owner: Da1020Columns" "Decision: reuse"'
-    transcript_only = write_transcript("declare-transcript.jsonl", [U("thêm cột vào DA1020"), tools(bash_echo(DECLARE_ECHO))])
+    def session_edit(transcript, session, prompt_id):
+        return decision(call_gate(dict(base, transcript_path=transcript, session_id=session, prompt_id=prompt_id)))
+
+    transcript_only = write_transcript("declare-transcript.jsonl", [
+        user_prompt("thêm cột vào DA1020", "p1"),
+        assistant_with("p1", bash_echo(DECLARE_ECHO)),
+        bash_result("tool-1")])
     check("session: a transcript echo counts without a state entry",
-          decision(call_gate(dict(base, transcript_path=transcript_only, session_id="cc-transcript"))), "allow")
-    stale = write_transcript("declare-transcript-old.jsonl",
-                             [U("thêm cột vào DA1020"), tools(bash_echo(DECLARE_ECHO)), U("giờ sửa màn DA1021 header")])
+          session_edit(transcript_only, "cc-transcript", "p1"), "allow")
+    stale = write_transcript("declare-transcript-old.jsonl", [
+        user_prompt("thêm cột vào DA1020", "p1"),
+        assistant_with("p1", bash_echo(DECLARE_ECHO)),
+        bash_result("tool-1"),
+        user_prompt("giờ sửa màn DA1021 header", "p2")])
     check("session: a transcript echo before the latest request does not count",
-          decision(call_gate(dict(base, transcript_path=stale, session_id="cc-stale"))), "deny")
-    parallel = write_transcript("declare-parallel.jsonl", [U("thêm cột vào DA1020"), tools(
-        bash_echo(DECLARE_ECHO), {"type": "tool_use", "id": "tool-2", "name": "Edit", "input": {"file_path": "src/B.tsx"}})])
-    check("session: an echo in the same message as the edit counts",
-          decision(call_gate(dict(base, transcript_path=parallel, session_id="cc-parallel"))), "allow")
+          session_edit(stale, "cc-stale", "p2"), "deny")
+    parallel = write_transcript("declare-parallel.jsonl", [
+        user_prompt("thêm cột vào DA1020", "p3"),
+        assistant_with("p3", bash_echo(DECLARE_ECHO),
+                       {"type": "tool_use", "id": "tool-2", "name": "Edit", "input": {"file_path": "src/B.tsx"}})])
+    check("session: an echo counts only after its tool_result",
+          session_edit(parallel, "cc-parallel", "p3"), "deny")
+    parallel_ran = write_transcript("declare-parallel-ran.jsonl", [
+        user_prompt("thêm cột vào DA1020", "p3"),
+        assistant_with("p3", bash_echo(DECLARE_ECHO),
+                       {"type": "tool_use", "id": "tool-2", "name": "Edit", "input": {"file_path": "src/B.tsx"}}),
+        bash_result("tool-1")])
+    check("session: an echo in the edit's message counts once it ran",
+          session_edit(parallel_ran, "cc-parallel-ran", "p3"), "allow")
+    denied_echo = write_transcript("declare-denied.jsonl", [
+        user_prompt("thêm cột vào DA1020", "p4"),
+        assistant_with("p4", bash_echo(DECLARE_ECHO)),
+        bash_result("tool-1", is_error=True)])
+    check("session: a denied echo is not a declaration",
+          session_edit(denied_echo, "cc-denied", "p4"), "deny")
+
+    # The host writes the prompt line after the echo hook ran. The prompt id is the same on both
+    # calls, so the declaration survives the transcript order.
+    late = write_transcript("late-flush.jsonl", [assistant_with("p5", bash_echo(DECLARE_ECHO))])
+    call_gate(dict(base, transcript_path=late, session_id="cc-late", prompt_id="p5",
+                   tool_name="Bash", tool_input={"command": DECLARE_ECHO}))
+    with open(late, "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(user_prompt("sửa OrderForm.tsx", "p5")) + "\n")
+    check("session: a prompt flushed after the echo keeps the declaration",
+          session_edit(late, "cc-late", "p5"), "allow")
+    with open(late, "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(user_prompt("sửa OrderForm.tsx", "p6")) + "\n")
+    check("session: the same text under a new prompt id does not reuse the declaration",
+          session_edit(late, "cc-late", "p6"), "deny")
+
+    corrupt = os.path.join(TMP, "corrupt.jsonl")
+    with open(corrupt, "w", encoding="utf-8") as handle:
+        handle.write(json.dumps(user_prompt("thêm cột", "p7")) + "\n")
+        handle.write('{"type":"assistant","message":{"content":[{"type":"text","text":"Runtime owner: Evil\\nDecision: reuse"')
+    check("session: a half-written transcript line does not declare",
+          session_edit(corrupt, "cc-corrupt", "p7"), "deny")
+
+    for owner in ("(none)", "see below"):
+        tr = write_transcript("owner-%s.jsonl" % len(owner), [
+            user_prompt("thêm cột", "p8"),
+            assistant_with("p8", bash_echo('echo "Runtime owner: %s" "Decision: reuse"' % owner)),
+            bash_result("tool-1")])
+        check("session: owner %r is a placeholder" % owner, session_edit(tr, "cc-owner-%d" % len(owner), "p8"), "deny")
+    piped = write_transcript("owner-pipe.jsonl", [
+        user_prompt("thêm cột", "p9"),
+        assistant_with("p9", bash_echo('echo "Runtime owner: OrderForm|useOrder" "Decision: reuse"')),
+        bash_result("tool-1")])
+    check("session: a pipe inside a value still counts", session_edit(piped, "cc-pipe", "p9"), "allow")
 
     # A host notice is a user entry that no person typed, so it does not start a new request.
     notice = "<task-notification>\n<task-id>a1</task-id>\n<status>completed</status>\n</task-notification>"
@@ -479,6 +562,26 @@ def run_special():
           edit(write_transcript("notice-4.jsonl", [U("thêm cột"),
                                                    U(notice.replace("</status>", "</status>\n" + OK),
                                                      origin={"kind": "task-notification"})])), "deny")
+    check("labels survive a bash-input notice",
+          edit(write_transcript("notice-bash.jsonl",
+                                [U("thêm cột"), A(T(OK)), U("<bash-input>git status</bash-input>")])), "allow")
+    slash = ("<command-name>/fe-kit:fe-kit</command-name>\n"
+             "<command-message>fe-kit:fe-kit</command-message>\n"
+             "<command-args>sửa giỏ hàng</command-args>")
+    check("slash command args start a new request",
+          edit(write_transcript("notice-slash.jsonl", [U("thêm cột"), A(T(OK)), U(slash)])), "deny")
+    image = {"type": "user", "message": {"role": "user", "content": [
+        {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "x"}}]}}
+    check("an image-only message starts a new request",
+          edit(write_transcript("notice-image.jsonl", [U("thêm cột"), A(T(OK)), image])), "deny")
+
+    wf_main = write_transcript("wf-main.jsonl", [dict(U("thêm cột"), uuid="R1")])
+    write_transcript(os.path.join("wf-main", "subagents", "workflows", "wf1", "agent-wf.jsonl"), [
+        user_prompt("việc con", "R1"),
+        assistant_with("R1", bash_echo(DECLARE_ECHO)),
+        bash_result("tool-1")])
+    check("a workflow subagent echo is read",
+          decision(call_gate(dict(base, transcript_path=wf_main, agent_id="wf"))), "allow")
     check("a typed request after a notice still starts a new request",
           edit(write_transcript("notice-5.jsonl", [U("thêm cột"), A(T(OK)), U(notice, origin={"kind": "task-notification"}),
                                                    U("giờ sửa màn DA1021", origin={"kind": "human"})])), "deny")
@@ -535,6 +638,38 @@ def run_special():
     reason = json.loads(lead)["hookSpecificOutput"]["permissionDecisionReason"]
     check("deny starts with the command and names the file",
           "allow" if reason.startswith("Blocked. Run this Bash command") and 'echo "Runtime owner: <the component or hook that runs B.tsx>"' in reason else "deny", "allow")
+
+    # A commit needs the logic handoff the user approved.
+    repo = os.path.join(TMP, "handoff-repo")
+    os.makedirs(os.path.join(repo, "src"), exist_ok=True)
+    with open(os.path.join(repo, "src", "A.tsx"), "w", encoding="utf-8") as handle:
+        handle.write("export const a = 1;\n")
+    subprocess.run(["git", "init", "-q", repo], check=True)
+    subprocess.run(["git", "-C", repo, "config", "user.name", "Tester"], check=True)
+    subprocess.run(["git", "-C", repo, "add", "-A"], check=True)
+    handoff_path = os.path.join(repo, ".fe-kit", "handoff.md")
+    user = write_transcript("handoff-user.jsonl", [U("xong feat")])
+    def commit_gate():
+        payload = {"hook_event_name": "PreToolUse", "tool_name": "Bash",
+                   "tool_input": {"command": "git commit -m done"}, "cwd": repo,
+                   "session_id": "handoff", "transcript_path": user}
+        return "deny" if '"deny"' in call_gate(payload) else "allow"
+    check("a commit without a handoff is blocked", commit_gate(), "deny")
+    os.makedirs(os.path.dirname(handoff_path), exist_ok=True)
+    with open(handoff_path, "w", encoding="utf-8") as handle:
+        handle.write("# Handoff\n## 1. Logic\nx\n## 2. Implementation\nsrc/A.tsx\n## 3. Decisions\nx\n"
+                     "## 4. Debug without AI\nx\n## 5. Risks\nx\n## 6. Q&A\nx\n")
+    check("a handoff needs the user's approval", commit_gate(), "deny")
+    subprocess.run([sys.executable, "-I", os.path.join(HERE, "handoff.py"), "approve", "--root", repo, "--by", "Tester"], check=True)
+    check("an approved handoff allows the commit", commit_gate(), "allow")
+    time.sleep(1.1)
+    with open(os.path.join(repo, "src", "A.tsx"), "w", encoding="utf-8") as handle:
+        handle.write("export const a = 2;\n")
+    subprocess.run(["git", "-C", repo, "add", "-A"], check=True)
+    check("an edit after approval blocks the commit", commit_gate(), "deny")
+    with open(os.path.join(repo, ".fe-kit", "config.yaml"), "w", encoding="utf-8") as handle:
+        handle.write('handoff: "off"\n')
+    check("handoff off allows the commit", commit_gate(), "allow")
     return failures
 
 if __name__ == "__main__":

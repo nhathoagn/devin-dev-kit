@@ -21,7 +21,8 @@ import yaml_subset
 CONFIG_PATH = ".fe-kit/config.yaml"
 DEFAULT_SPEC_DIRS = ["docs", "specs", ".scratch"]
 LIST_KEYS = ("presets", "always_read", "spec_dirs", "gate", "exclude")
-KNOWN_KEYS = {"version", "rules", "legacy"} | set(LIST_KEYS)
+KNOWN_KEYS = {"version", "rules", "legacy", "handoff"} | set(LIST_KEYS)
+HANDOFF_MODES = ("required", "off")
 PRESET_FILES = {"review": ["review.md"], "author": ["design.md"], "all": ["design.md", "review.md"]}
 RULE_NAMES = ("AGENTS.md", "CLAUDE.md")
 MODES = ("review", "author", "all")
@@ -119,6 +120,14 @@ def load_config(root):
     if not isinstance(legacy, dict) or not all(isinstance(value, str) for value in legacy.values()):
         raise ConfigError("`legacy` must be a mapping of strings")
     config["legacy"] = legacy
+    handoff = data.get("handoff", "required")
+    if handoff is True:
+        handoff = "required"
+    elif handoff is False:
+        handoff = "off"
+    if handoff not in HANDOFF_MODES:
+        raise ConfigError("`handoff` must be `required` or `off`")
+    config["handoff"] = handoff
     for pattern in config["exclude"]:
         glob_regex(pattern)
     return config, warnings

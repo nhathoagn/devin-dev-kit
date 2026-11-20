@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.29.0
+
+AI writes code faster than the person who has to maintain it can follow. A change could pass every gate and still leave the user unable to explain the logic or debug it without the AI. The last step before a commit was missing.
+
+- New `references/handoff.md`: `.fe-kit/handoff.md` with six sections a person reads — Logic, Implementation, Decisions, Debug without AI, Risks, Q&A. The implementation section names every changed file and the function that owns each step. The debug section gives the reproduce command, the file:line to watch, what each failure means, how to verify a fix, and the rollback. The Q&A is 3–5 questions about the state holder, the easy-to-miss branch, and the check that proves a fix; the user's answers are recorded.
+- New `scripts/handoff.py`: `check` reports a missing section, an unnamed staged file, a missing approval, or an approval older than a staged file; `approve` stamps `Confirmed-by`/`Confirmed-at` and refuses an incomplete handoff. The agent does not approve its own handoff.
+- `scripts/fe-gate.py`: a `git commit` (including `-a` and `-C`) is denied until the handoff covers every staged source file and the user approved it. A docs-only commit passes. An edit after approval invalidates it.
+- `scripts/project_config.py`: new `handoff` key (`required` | `off`), including the YAML boolean an unquoted `off` produces.
+- `rules/fe-implementation.md`, `skills/fe-kit/SKILL.md`: the pre-commit handoff and the user's approval are part of the workflow.
+- Tests: new `test_handoff.py` 10 cases; `test_fe_gate.py` 223 cases, including the commit gate (no handoff, no approval, approved, stale, off).
+- Version 1.29.0 in `plugin.json`, `package.json`, and both places in `marketplace.json`.
+
 ## 1.28.0
 
 Two Fowler checklists can name and score smells, but neither asks Ousterhout's question: whether a module is deep — whether its interface costs less than the complexity it hides. A refactor could remove every named smell and still ship a shallow module, an interface that pushes work up to callers, or an error case a simpler contract would have defined away.
@@ -18,12 +30,30 @@ A reviewer could score structure yet had no index to name what it found. `fowler
 - `references/fowler-checklist.md` points at the new index.
 - Version 1.27.0 in `plugin.json`, `package.json`, and both places in `marketplace.json`.
 
+## 1.26.0
+
+The 1.25.2 fallback still missed the case it was written for: `request_scope()` follows physical line order, so when the host appended the prompt line after the echo entry, the echo fell outside the request, and the state key (a hash of the request text) named a different request. The same text in a later prompt reopened an old declaration, and a half-written transcript line or an echo whose `tool_result` failed counted as a declaration.
+
+- Request identity comes from the host, not the text. `payload_prompt_id()` reads `prompt_id` (present on every Claude Code hook call of a turn); the state is keyed by it, falling back to the entry `promptId`/`uuid`, then the text for hosts without either. A later prompt with the same text is a new request.
+- Transcript declarations are matched by prompt id and count only after a non-error `tool_result`, so an echo the host denied or never ran is not a declaration, and a prompt flushed after the echo still matches. Entries without ids keep the physical request scope.
+- `parse_transcript()` skips a line that is not complete JSON; a torn assistant line no longer becomes authored text.
+- `label_store.declared_lines()` reconstructs what echo/printf prints: unquoted labels, a `cd ... &&` prefix, assignments, and `2>/dev/null` count. `printf` binds `%s` in order. Backticks, substitutions, pipes, other redirects, and unresolved `printf` specs are rejected with a reason instead of silently; the Bash hook emits that reason when a label-looking command is not a declaration.
+- Owner placeholders are checked after stripping brackets: `(none)`, `see below`, `TBD2`, `%s`, `$VAR` do not count. A pipe skips only a real table row, so `Runtime owner: OrderForm|useOrder` counts, while a menu of decision words still does not.
+- `CONTINUATION_RE` accepts `ok nhé`, `oki`, `cứ tiếp tục`, `làm tiếp đi`, `tiếp nhé`, `được nhé`. Host notices (`<bash-input>`, `<total_tokens>`, …) are searched after reminders are stripped and no longer start a request; a slash command's `<command-args>` is the person text; an image-only message does start a request.
+- `label_store.save()` takes a lock and replaces the file atomically, so two parallel echoes do not lose each other.
+- A workflow subagent transcript under `subagents/workflows/<run>/agent-<id>.jsonl` is found. `parse_transcript()` caches by mtime and size, and the flush retry re-parses only when the file changed.
+- `PostToolUse` now covers `Bash`, so a file written through Bash gets the conflict-marker and repo-rule checks. `run_repo_rules()` runs `.claude/rules.sh` through `sh` on Windows. `load_rule()` returns empty text on a missing or unreadable rule file instead of exiting 1. `fe-gate.sh` probes `python3` before `exec`, so a Windows Store alias or the Xcode shim cannot disable the hook silently.
+- `scripts/bash_target.py`: the runner boundary no longer matches `py`/`tsx` inside a path (`git add a.py b.py` is not a script run); redirects, tee, and write calls are read outside quotes; `sed -i`, `perl -i`, `cp`, and `mv` are parsed by token, so `s|a|b|`, scripts with `;`, directory destinations, and `-t` work; a test script's fixture writes are not gated.
+- `scripts/wording.py`: a literal under a code-named property or assignment is code even inside a copy call (`setError("email", …)`, `showToast("success", …)`, `const error = …`); `${count} items` and `intl.formatMessage`/`defaultMessage` are copy.
+- Tests: `test_fe_gate.py` 218 cases, including a prompt flushed after the echo, the same text under a new prompt id, a torn line, a denied echo, unquoted/cd/redirect/backtick declarations, placeholders, a pipe in a value, continuation variants, host notices, image-only messages, and a workflow subagent echo. New `test_bash_target.py` 18 cases. `test_wording.py` 85 cases.
+- Version 1.26.0 in `plugin.json`, `package.json`, and both places in `marketplace.json`.
+
 ## 1.25.2
 
 An `echo` declaration could be lost even though the agent ran it. The declaration was saved under a hash of the latest user text read when the echo hook ran. When the host had not flushed the current user message to the transcript yet, that hash named the previous request, so the edit hook looked up a different entry and denied the edit with the Reuse Decision message.
 
 - `scripts/fe-gate.py`: `authored_entries()` also reads declaration `echo` commands from the assistant's Bash `tool_use` blocks (`entry_bash_commands`), so `request_scope()` and `scoped_entries()` see a declaration the agent already ran at gate time, even when the state entry was keyed by an unflushed request. A declaration before the latest user message still does not count, and a main-agent edit still does not see a subagent's declaration.
-- `scripts/test_fe_gate.py`: 3 new cases, each failing on 1.25.1: an echo that exists only in the transcript, an echo in the same assistant message as the edit, and an echo before a newer request, which stays denied.
+- `scripts/test_fe_gate.py`: 3 new cases; 2 fail on 1.25.1 (an echo that exists only in the transcript, and an echo in the same assistant message as the edit). The third, an echo before a newer request, already denied and is a guard for scope trimming.
 - Version 1.25.2 in `plugin.json`, `package.json`, and both places in `marketplace.json`.
 
 ## 1.25.1

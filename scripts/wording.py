@@ -30,7 +30,7 @@ STYLE_WORDS = frozenset((
 COPY_WORDS = frozenset((
     "label", "labels", "text", "texts", "title", "titles", "message", "messages",
     "description", "descriptions", "placeholder", "placeholders", "tooltip",
-    "tooltips", "caption", "captions", "hint", "hints", "error", "errors", "subtitle",
+    "tooltips", "caption", "captions", "hint", "hints", "subtitle",
     "subtitles", "heading", "headings", "summary", "summaries", "children",
 ))
 COPY_COMPOUNDS = frozenset((
@@ -47,11 +47,24 @@ COPY_ATTRS = frozenset((
     "aria-roledescription", "placeholder", "alt", "label", "tooltip", "emptyText",
     "confirmText", "cancelText", "okText", "loadingText", "errorText", "helpText",
     "description", "caption", "message", "heading", "subtitle", "summary",
+    "defaultMessage", "i18nKey",
 ))
 STYLE_ATTRS = frozenset(("class", "className", "classNames", "style", "css", "sx", "tw"))
 COPY_CALLEES = frozenset((
-    "t", "i18n.t", "translate", "formatMessage", "getText", "$t", "alert", "confirm",
-    "prompt", "setLabel", "setTitle", "setMessage", "setError", "setPlaceholder",
+    "t", "i18n.t", "intl.formatMessage", "translate", "formatMessage", "getText", "$t",
+    "alert", "confirm", "prompt",
+    "setLabel", "setTitle", "setMessage", "setError", "setPlaceholder",
+    "setHelperText", "setCaption", "setTooltip", "setDescription", "notify",
+    "showToast", "showMessage",
+))
+# The text is the only argument of these, or an options object follows it.
+TEXT_CALLEES = frozenset((
+    "t", "i18n.t", "intl.formatMessage", "translate", "formatMessage", "getText", "$t",
+    "alert", "confirm", "prompt",
+))
+# A setter or a notifier takes a field or a severity before the text.
+VALUE_THEN_TEXT_CALLEES = frozenset((
+    "setLabel", "setTitle", "setMessage", "setError", "setPlaceholder",
     "setHelperText", "setCaption", "setTooltip", "setDescription", "notify",
     "showToast", "showMessage",
 ))
@@ -828,7 +841,7 @@ def _mark_calls(tokens):
         if token["kind"] == "op" and token["text"] == "(":
             name = _call_name(tokens, index)
             if name:
-                stack.append({"callee": name, "sink": _call_sink(name)})
+                stack.append({"callee": name, "sink": _call_sink(name), "paren": index, "close": None})
             else:
                 stack.append(None)
         token["call"] = None
@@ -838,7 +851,46 @@ def _mark_calls(tokens):
                 break
         if token["kind"] == "op" and token["text"] == ")":
             if stack:
-                stack.pop()
+                entry = stack.pop()
+                if entry is not None:
+                    entry["close"] = index
+
+
+def _call_arg_position(tokens, call, index):
+    # (argument index, is the last argument) for a token inside a call.
+    paren = call.get("paren")
+    close = call.get("close")
+    if paren is None or index <= paren:
+        return 0, True
+    arg = 0
+    depth = 0
+    for cursor in range(paren + 1, index):
+        token = tokens[cursor]
+        if token["kind"] != "op":
+            continue
+        text = token["text"]
+        if text in ("(", "[", "{", "${"):
+            depth += 1
+        elif text in (")", "]", "}"):
+            depth -= 1
+        elif text == "," and depth == 0:
+            arg += 1
+    last = True
+    if close is not None:
+        depth = 0
+        for cursor in range(index + 1, close):
+            token = tokens[cursor]
+            if token["kind"] != "op":
+                continue
+            text = token["text"]
+            if text in ("(", "[", "{", "${"):
+                depth += 1
+            elif text in (")", "]", "}"):
+                depth -= 1
+            elif text == "," and depth == 0:
+                last = False
+                break
+    return arg, last
 
 
 def _is_ternary_colon(tokens, colon_index):
@@ -849,7 +901,7 @@ def _is_ternary_colon(tokens, colon_index):
         if token["kind"] == "op":
             if token["text"] in (")", "]", "}"):
                 depth += 1
-            elif token["text"] in ("(", "[", "{"):
+            elif token["text"] in ("(", "[", "{", "${"):
                 if depth == 0:
                     return False
                 depth -= 1
@@ -909,9 +961,9 @@ def _assignment_name(tokens, index):
             text = token["text"]
             if text in (")", "]", "}"):
                 depth += 1
-            elif text in ("(", "[", "{"):
+            elif text in ("(", "[", "{", "${"):
                 if depth == 0:
-                    if text == "(" or not _literal_opener(tokens, cursor):
+                    if text != "${" and (text == "(" or not _literal_opener(tokens, cursor)):
                         return ""
                 else:
                     depth -= 1
@@ -956,27 +1008,33 @@ def _classify(tokens, index):
         return "code"
     if _operand_of_code(tokens, index):
         return "code"
-    call = token.get("call")
-    if call is not None:
-        return call.get("sink") or "code"
-    ctx = token.get("ctx") or {}
-    kind = ctx.get("kind")
-    if kind == "jsx_attr":
-        sink = ctx.get("sink") or "code"
-        return sink if sink in ("copy", "style") else "code"
-    if kind == "jsx_child":
-        return "copy"
     key = _property_key(tokens, index)
     if key:
+        # A literal under a code-named key is a value the behavior reads. An unknown key falls back
+        # to the object it is assigned to, as in { save: 'Lưu' } under LABELS.
         sink = _key_sink(key)
         if sink:
             return sink
+        name = _assignment_name(tokens, index)
+        return (_name_sink(name) or "code") if name else "code"
     name = _assignment_name(tokens, index)
     if name:
-        sink = _name_sink(name)
-        if sink:
-            return sink
-    if kind == "jsx_text":
+        return _name_sink(name) or "code"
+    call = token.get("call")
+    if call is not None:
+        sink = call.get("sink") or "code"
+        if sink == "copy":
+            callee = call.get("callee") or ""
+            position, is_last = _call_arg_position(tokens, call, index)
+            text_only = callee in TEXT_CALLEES or callee.startswith(COPY_CALLEE_PREFIXES)
+            if callee.rsplit(".", 1)[-1] in VALUE_THEN_TEXT_CALLEES and not is_last:
+                return "code"
+            if text_only and position != 0:
+                return "code"
+        return sink
+    ctx = token.get("ctx") or {}
+    kind = ctx.get("kind")
+    if kind in ("jsx_text", "jsx_child"):
         return "copy"
     if kind == "tag":
         return "style" if ctx.get("sink") == "style" else "code"

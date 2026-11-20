@@ -1,3 +1,4 @@
+import glob
 import json
 import os
 import re
@@ -21,6 +22,10 @@ try:
     import project_config
 except Exception:
     project_config = None
+try:
+    import handoff
+except Exception:
+    handoff = None
 
 # The hook payload is UTF-8. Windows Python decodes stdin as cp1252 by default, which breaks Vietnamese prompts.
 raw = sys.stdin.buffer.read().decode("utf-8", errors="replace").strip()
@@ -41,11 +46,81 @@ if isinstance(tool_input, dict):
 
 cwd = event.get("cwd") or ""
 
+def git_commit(command, cwd):
+    # (repo root, stages all tracked files) when the command runs git commit, else None.
+    if not bash_target or not command:
+        return None
+    for tokens, _ in bash_target.shell_segments(command):
+        index = bash_target.command_index(tokens)
+        if index >= len(tokens) or os.path.basename(tokens[index]) != "git":
+            continue
+        rest = tokens[index + 1:]
+        if "commit" not in rest:
+            continue
+        root = cwd or "."
+        for position, token in enumerate(rest):
+            if token == "-C" and position + 1 < len(rest):
+                candidate = rest[position + 1]
+                root = candidate if os.path.isabs(candidate) else os.path.join(cwd or ".", candidate)
+        return os.path.abspath(root), ("-a" in rest or "--all" in rest)
+    return None
+
+def handoff_disabled(root):
+    if not project_config:
+        return False
+    try:
+        config, _ = project_config.load_config(root)
+    except Exception:
+        return False
+    return bool(config and config.get("handoff") == "off")
+
+def handoff_script():
+    root = os.environ.get("FE_ARCH_ROOT") or os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    return os.path.join(root, "scripts", "handoff.py")
+
+def commit_block(root, all_files):
+    if not handoff or not os.path.isdir(root) or handoff_disabled(root):
+        return ""
+    files = handoff.staged_files(root)
+    if all_files:
+        files += handoff.changed_files(root)
+    found = handoff.problems(root, sorted(set(files)))
+    if not found:
+        return ""
+    return (
+        "Blocked. Before a commit, write the logic handoff a person can read and debug from. "
+        + " ".join(found)
+        + " Write `%s` with sections Logic, Implementation, Decisions, Debug without AI, Risks, Q&A; "
+          "name every staged source file; ask the user the Q&A in chat; then ask the user to run: "
+          'python3 "%s" approve --root "%s". Do not run approve yourself.'
+        % (handoff.HANDOFF_PATH, handoff_script(), root)
+    )
+
 if tool_name == "Bash" and isinstance(tool_input, dict):
-    path = bash_target.write_target(tool_input.get("command") or "", cwd) if bash_target else ""
-    declared = label_store.declared_lines(tool_input.get("command") or "") if label_store and not path else []
-    # A Bash command that writes no frontend file and declares no label has nothing to gate or inject.
+    command = tool_input.get("command") or ""
+    if name == "PreToolUse":
+        commit = git_commit(command, cwd)
+        if commit:
+            reason = commit_block(commit[0], commit[1])
+            if reason:
+                print(json.dumps({
+                    "hookSpecificOutput": {
+                        "hookEventName": "PreToolUse",
+                        "permissionDecision": "deny",
+                        "permissionDecisionReason": reason,
+                    }
+                }))
+                sys.exit(0)
+    path = bash_target.write_target(command, cwd) if bash_target else ""
+    declared = label_store.declared_lines(command) if label_store and not path else []
     if not path and not declared:
+        # A rejected declaration must say why, or the agent runs it again and reads the same deny.
+        if label_store and label_store.LABEL_RE.search(command):
+            note = "fe-kit could not read a declaration from this command. " + (
+                label_store.declaration_problem(command)
+                or 'Run one plain echo with quoted labels: echo "Runtime owner: OrderForm" "Decision: reuse"'
+            )
+            print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": note}}))
         sys.exit(0)
 
 full_path = path
@@ -143,9 +218,13 @@ REPRODUCE_LABELS = {"Trigger": "Trigger|Steps?", "Expected": "Expected", "Actual
 NEXT_LINE_VALUE = r"[ \t]*\n\s*(?!`|\||(?:Trigger|Steps?|Expected|Actual)\b)\S"
 # A short reply continues the current task. Anything else starts a new task, so old labels do not count.
 CONTINUATION_RE = re.compile(
-    r"^\s*(?:ok(?:ay)?|oke|yes|yeah|yep|sure|go on|go ahead|continue|proceed|do it|"
-    r"thanks|lgtm|ừ|uh|vâng|dạ|được|đồng ý|làm đi|chạy đi|tiếp tục|tiếp|"
-    r"(?:ok(?:ay)?|oke|ừ|vâng|dạ|được)\s*[,.!]*\s*(?:làm đi|chạy đi|tiếp tục|tiếp)"
+    r"^\s*(?:"
+    r"ok(?:ay|i|ie)?(?:\s+(?:nhé|nha|nhe|bạn|ạ|đi|làm tiếp(?: đi)?))?|"
+    r"oke|yes|yeah|yep|sure|go on|go ahead|continue|proceed|do it|"
+    r"thanks|lgtm|ừ|uh|vâng|dạ|đồng ý|"
+    r"được(?:\s+(?:nhé|nha|nhe|ạ|rồi|đấy))?|"
+    r"(?:cứ\s+)?(?:làm|đi)?\s*tiếp(?:\s*(?:đi|nhé|nha|tục))?|"
+    r"(?:làm|chạy|sửa|đi)\s+(?:tiếp|đi)(?:\s*(?:đi|nhé))?"
     r")\s*[.!…]*\s*$",
     re.I,
 )
@@ -170,67 +249,124 @@ def entry_texts(entry):
             texts.append(block.get("thinking") or "")
     return texts
 
-def entry_bash_commands(entry):
+def entry_blocks(entry):
     message = entry.get("message")
     if not isinstance(message, dict):
         return []
     content = message.get("content")
     if not isinstance(content, list):
         return []
-    commands = []
-    for block in content:
-        if not isinstance(block, dict) or block.get("type") != "tool_use" or block.get("name") != "Bash":
+    return [block for block in content if isinstance(block, dict)]
+
+def entry_bash_calls(entry):
+    calls = []
+    for block in entry_blocks(entry):
+        if block.get("type") != "tool_use" or block.get("name") != "Bash":
             continue
         tool_input = block.get("input")
         if isinstance(tool_input, dict):
-            commands.append(tool_input.get("command") or "")
-    return commands
+            calls.append((block.get("id") or "", tool_input.get("command") or ""))
+    return calls
 
-# The host writes these as user entries, but no person typed them. They do not start a request.
-HOST_NOTICE_RE = re.compile(
-    r"^\s*<(?:task-notification|command-name|command-message|command-args|local-command-stdout|local-command-stderr)>"
-)
+def entry_tool_results(entry):
+    results = []
+    for block in entry_blocks(entry):
+        if block.get("type") == "tool_result":
+            results.append((block.get("tool_use_id") or "", block.get("is_error") is True))
+    return results
 
-def typed_by_person(entry):
-    origin = entry.get("origin")
-    if isinstance(origin, dict) and origin.get("kind") not in (None, "human"):
-        return False
-    return not any(HOST_NOTICE_RE.match(text) for text in entry_texts(entry))
+def entry_request_id(entry):
+    # Claude Code writes the prompt UUID on every entry of a turn. uuid is the older stable id.
+    for key in ("promptId", "uuid"):
+        value = entry.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return ""
 
-def authored_entries(path, roles):
-    # Only text a person typed or Claude wrote, as (role, text) in transcript order.
-    # Tool output, reminders, and hook notes are not authored.
+_TRANSCRIPT_CACHE = {}
+
+def parse_transcript(path):
+    # A line the host is still writing is not a declaration. It is not authored text either.
+    # One hook process parses the same file many times, so the parsed list is cached by mtime and size.
+    if not path or not os.path.isfile(path):
+        return []
+    try:
+        stat = os.stat(path)
+    except OSError:
+        return []
+    key = (path, stat.st_mtime_ns, stat.st_size)
+    cached = _TRANSCRIPT_CACHE.get(key)
+    if cached is not None:
+        return cached
     entries = []
     for line in transcript_lines(path):
         try:
             entry = json.loads(line)
         except ValueError:
-            entries.append(("", line))
             continue
-        if not isinstance(entry, dict) or entry.get("type") not in roles or entry.get("isMeta"):
-            continue
-        if entry.get("type") == "user" and not typed_by_person(entry):
-            continue
-        # A compact summary is a user entry that no person typed. Its text counts, but it is not a request.
-        role = "summary" if entry.get("isCompactSummary") else entry.get("type")
-        for text in entry_texts(entry):
-            text = REMINDER_RE.sub("", text).replace(DENY_REASON, "").replace(DENY_BUG_REASON, "")
-            if text.strip():
-                entries.append((role, text))
-        if role == "assistant":
-            # The echo command is authoritative at gate time, even when the state entry was keyed by a
-            # request text the host had not flushed yet.
-            for command in entry_bash_commands(entry):
-                declared = label_store.declared_lines(command) if label_store else []
-                if declared:
-                    entries.append(("declared", "\n".join(declared)))
+        if isinstance(entry, dict):
+            entries.append(entry)
+    if len(_TRANSCRIPT_CACHE) > 8:
+        _TRANSCRIPT_CACHE.clear()
+    _TRANSCRIPT_CACHE[key] = entries
     return entries
 
-def authored_texts(path, roles):
-    return [text for _, text in authored_entries(path, roles)]
+def transcript_signature(path):
+    try:
+        stat = os.stat(path)
+    except OSError:
+        return None
+    return stat.st_mtime_ns, stat.st_size
+
+# The host writes these as user entries, but no person typed them. They do not start a request.
+HOST_NOTICE_RE = re.compile(
+    r"<(?:task-notification|command-name|command-message|command-args|local-command-[a-z-]+|"
+    r"bash-input|bash-stdout|bash-stderr|bash-exit-code|total_tokens|user-prompt-submit-hook|"
+    r"post-tool-use-hook|mcp-resource-update|mcp-polling-update|agent-message|teammate-message|"
+    r"cross-session-message|ide_selection|ide_opened_file|wake|tick|slack-ping)\b"
+)
+COMMAND_ARGS_RE = re.compile(r"<command-args>(.*?)</command-args>", re.S)
+
+def typed_by_person(entry):
+    origin = entry.get("origin")
+    if isinstance(origin, dict) and origin.get("kind") not in (None, "human"):
+        return False
+    text = REMINDER_RE.sub("", "\n".join(entry_texts(entry)))
+    return not HOST_NOTICE_RE.search(text)
+
+def person_texts(entry):
+    # A slash command carries the only person-typed text in its <command-args>.
+    if typed_by_person(entry):
+        texts = entry_texts(entry)
+        if texts:
+            return texts
+        if any(block.get("type") == "image" for block in entry_blocks(entry)):
+            return ["[image]"]
+        return []
+    match = COMMAND_ARGS_RE.search(REMINDER_RE.sub("", "\n".join(entry_texts(entry))))
+    return [match.group(1)] if match and match.group(1).strip() else []
+
+def clean_text(text):
+    return REMINDER_RE.sub("", text).replace(DENY_REASON, "").replace(DENY_BUG_REASON, "")
+
+def authored_entries(path, roles):
+    # Only text a person typed or Claude wrote, as (role, text) in transcript order.
+    # Tool output, reminders, and hook notes are not authored.
+    entries = []
+    for entry in parse_transcript(path):
+        if entry.get("type") not in roles or entry.get("isMeta"):
+            continue
+        texts = person_texts(entry) if entry.get("type") == "user" else entry_texts(entry)
+        # A compact summary is a user entry that no person typed. Its text counts, but it is not a request.
+        role = "summary" if entry.get("isCompactSummary") else entry.get("type")
+        for text in texts:
+            text = clean_text(text)
+            if text.strip():
+                entries.append((role, text))
+    return entries
 
 def is_continuation(text):
-    # "ok", "làm đi", "tiếp tục", and an interrupt continue the current task. Everything else starts one.
+    # "ok", "làm đi", and an interrupt continue the current task. Everything else starts one.
     if text.lstrip().startswith("[Request interrupted"):
         return True
     return bool(CONTINUATION_RE.match(text))
@@ -244,11 +380,21 @@ def request_scope(path):
             return entries[index:]
     return entries
 
+def latest_user_request(path):
+    # (text, request id) of the latest person message that starts a request.
+    for entry in reversed(parse_transcript(path)):
+        if entry.get("type") != "user" or entry.get("isMeta") or entry.get("isCompactSummary"):
+            continue
+        texts = [clean_text(text) for text in person_texts(entry)]
+        texts = [text for text in texts if text.strip()]
+        if not texts or any(is_continuation(text) for text in texts):
+            continue
+        text = "\n".join(texts)
+        return text, (entry_request_id(entry) or text)
+    return "", ""
+
 def latest_user_text(path):
-    for role, text in reversed(authored_entries(path, ("user",))):
-        if role == "user" and not is_continuation(text):
-            return text
-    return ""
+    return latest_user_request(path)[0]
 
 def user_is_bug(path):
     # The latest task decides, so an old bug report does not gate later work.
@@ -282,7 +428,11 @@ def subagent_transcript():
         return ""
     session_dir = os.path.splitext(main)[0]
     candidate = os.path.join(session_dir, "subagents", "agent-%s.jsonl" % agent_id)
-    return candidate if os.path.isfile(candidate) else ""
+    if os.path.isfile(candidate):
+        return candidate
+    # A workflow-spawned agent lives in subagents/workflows/<run>/agent-<id>.jsonl.
+    matches = glob.glob(os.path.join(session_dir, "subagents", "**", "agent-%s.jsonl" % agent_id), recursive=True)
+    return matches[0] if matches else ""
 
 def label_session():
     # omp writes a new transcript file on every call, so the session id comes first.
@@ -292,18 +442,75 @@ def label_session():
     transcript = event.get("transcript_path") or ""
     return "transcript:" + os.path.normcase(os.path.abspath(transcript)) if transcript else ""
 
+def payload_prompt_id():
+    # Claude Code sends one UUID per user prompt on every hook call of that turn.
+    value = event.get("prompt_id")
+    return value if isinstance(value, str) and value else ""
+
+def own_request_id(path):
+    return payload_prompt_id() or latest_user_request(path)[1]
+
+def request_boundary(entries):
+    boundary = 0
+    for index, entry in enumerate(entries):
+        if entry.get("type") != "user" or entry.get("isMeta") or entry.get("isCompactSummary"):
+            continue
+        texts = [clean_text(text) for text in person_texts(entry)]
+        texts = [text for text in texts if text.strip()]
+        if texts and not any(is_continuation(text) for text in texts):
+            boundary = index
+    return boundary
+
+def transcript_declarations(path, request_id):
+    # A declaration counts only when its prompt matches and the echo actually ran.
+    if not label_store or not request_id or not path or not os.path.isfile(path):
+        return []
+    entries = parse_transcript(path)
+    success = set()
+    for entry in entries:
+        for tool_id, is_error in entry_tool_results(entry):
+            if not is_error:
+                success.add(tool_id)
+    boundary = request_boundary(entries)
+    lines = []
+    for index, entry in enumerate(entries):
+        if entry.get("type") != "assistant":
+            continue
+        item_id = entry_request_id(entry)
+        if item_id:
+            # The prompt UUID orders the turn even when the host flushed the prompt line after the echo.
+            if item_id != request_id:
+                continue
+        elif index < boundary:
+            continue
+        for tool_id, command in entry_bash_calls(entry):
+            if tool_id in success:
+                lines.extend(label_store.declared_lines(command))
+    return lines
+
 def declared_texts():
     # Labels from an echo declaration of the latest request. A subagent also sees the main agent's labels.
     if not label_store:
         return []
     main = event.get("transcript_path") or ""
-    request = latest_user_text(main)
+    own = event.get("agent_id") or ""
+    own_request = own_request_id(main)
+    main_request = latest_user_request(main)[1] if own else own_request
     agent_ids = [""]
-    if event.get("agent_id"):
-        agent_ids.append(event.get("agent_id"))
+    if own:
+        agent_ids.append(own)
     texts = []
     for agent_id in agent_ids:
+        request = own_request if agent_id else main_request
         lines = label_store.load(label_session(), agent_id, request)
+        if lines:
+            texts.append("\n".join(lines))
+    transcripts = [(main, main_request)]
+    own_transcript = subagent_transcript() if own else ""
+    if own_transcript:
+        transcripts.append((own_transcript, own_request))
+    for transcript, request in transcripts:
+        lines = transcript_declarations(transcript, request)
         if lines:
             texts.append("\n".join(lines))
     return texts
@@ -331,14 +538,20 @@ HEADING_RE = re.compile(r"^\s*#{1,6}\s")
 SECTION_DECISION_RE = re.compile(r"[:：]\s*[*_`]*\s*" + DECISION_WORD, re.I)
 OWNER_LINE_RE = re.compile(r"Runtime owner[*_]*[:：][ \t]*[*_`]*[ \t]*([^\s,`]+)", re.I)
 OWNER_PLACEHOLDER_RE = re.compile(
-    r"^(?:tbd|tba|todo|to-do|none|null|nil|unknown|n/a|na|pending|placeholder|x+|\.+|\?+|-+|<.*)$",
+    r"^(?:tbd\w*|tba|todo|to-do|none|no[- ]?one|nobody|null|nil|unknown|n/?a|na|pending|placeholder|"
+    r"not[- ]?applicable|see|the|this|that|below|above|same|\$.*|%s|x+|\.+|\?+|-+|<.*)$",
     re.I,
 )
 # The decision word must follow the colon, so "Decision: do not reuse" is not a reuse decision.
 DECISION_LINE_RE = re.compile(r"Decision[*_]*[:：][ \t]*[*_`]*[ \t]*" + DECISION_WORD, re.I)
+# A menu of the allowed values is the template, not a decision.
+DECISION_MENU_RE = re.compile(
+    r"\b(?:reuse|extend|feature-local|shared|n/a)\b\s*[/,|]\s*(?:reuse|extend|feature-local|shared|n/a)\b",
+    re.I,
+)
 
 def clean_label_value(value):
-    return value.strip("*_` \t.,;:")
+    return value.strip("*_` \t.,;:()[]{}")
 
 def owner_value(line):
     match = OWNER_LINE_RE.search(line)
@@ -360,13 +573,14 @@ def decisions_found():
                 in_reuse_section = True
             elif HEADING_RE.match(line):
                 in_reuse_section = False
-            if "|" in line:
+            if line.lstrip().startswith("|"):
                 continue
             if owner_value(line):
                 found_owner = True
-            if DECISION_LINE_RE.search(line):
+            menu = DECISION_MENU_RE.search(line)
+            if not menu and DECISION_LINE_RE.search(line):
                 found_reuse = True
-            elif in_reuse_section and SECTION_DECISION_RE.search(line):
+            elif not menu and in_reuse_section and SECTION_DECISION_RE.search(line):
                 found_reuse = True
         if found_owner and found_reuse:
             break
@@ -501,14 +715,20 @@ def gate_open(bug_edit):
 
 def gate_open_after_flush(bug_edit):
     # Claude Code can write the reply text of the current turn after this hook reads the transcript.
-    # Read again for a short time before a deny, so lines written just before the edit call count.
+    # Read again for a short time before a deny, but only when the transcript actually changed.
     import time
     if os.environ.get("FE_GATE_NO_FLUSH") == "1" or declared_only():
         return gate_open(bug_edit)
     if gate_open(bug_edit):
         return True
+    transcript = event.get("transcript_path") or ""
+    signature = transcript_signature(transcript)
     for _ in range(FLUSH_RETRIES):
         time.sleep(FLUSH_WAIT_SECONDS)
+        current = transcript_signature(transcript)
+        if current == signature:
+            continue
+        signature = current
         if gate_open(bug_edit):
             return True
     return False
@@ -520,7 +740,7 @@ FLUSH_WAIT_SECONDS = 0.3
 if name == "PreToolUse" and tool_name == "Bash" and not path:
     # A declaration is allowed. Its labels are saved for the gated edits of the same request.
     transcript = event.get("transcript_path") or ""
-    saved = label_store.save(label_session(), event.get("agent_id") or "", latest_user_text(transcript), declared)
+    saved = label_store.save(label_session(), event.get("agent_id") or "", own_request_id(transcript), declared)
     note = "fe-kit recorded these labels for this request: %s. Retry the edit now." % "; ".join(declared)
     if not saved and declared_only():
         note = "fe-kit could not save the labels, because the state folder is not writable. Tell the user."
@@ -609,7 +829,11 @@ def plugin_root():
 
 def load_rule(filename):
     path = os.path.join(plugin_root(), "rules", filename)
-    text = open(path, encoding="utf-8").read()
+    try:
+        with open(path, encoding="utf-8") as handle:
+            text = handle.read()
+    except (OSError, UnicodeDecodeError):
+        return ""
     return re.sub(r"^---\n.*?\n---\n*", "", text, count=1, flags=re.S).strip()
 
 def project_rules_command(mode):
@@ -680,7 +904,7 @@ def run_repo_rules(start, target):
         return ""
     try:
         result = subprocess.run(
-            [script, target or ""],
+            ["sh", script, target or ""] if os.name == "nt" else [script, target or ""],
             cwd=root or None,
             capture_output=True,
             text=True,
