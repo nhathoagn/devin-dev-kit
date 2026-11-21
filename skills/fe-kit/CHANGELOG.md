@@ -1,12 +1,33 @@
 # Changelog
 
+## 1.37.0
+
+One reviewer grading one diff once left issues for a second pass: a rename review missed the `is`-prefix returning a truthy string, and a clean-up kept a hand-rolled loop beside the inlined code it sat next to. The fix is fan-out: every diff now gets one reviewer per checklist lens in parallel, the reports merge with the same `file:line` folded into one paragraph, the author fixes once, and one fresh reviewer checks each finding at HEAD.
+
+- New `scripts/review_lenses.py`: six lenses (`hygiene`, `correctness`, `contract`, `structure`, `naming`, `performance`) partition every item of `REVIEW_CHECKLIST.md` and `review-checks.md`, so six reports cover the checklist with no item read twice or missed. `list` prints the lenses for a fan-out, `items <lens>` prints its codes for a task brief.
+- `scripts/review_packages.py merge` now names each finding's source (`Lens:` line, or `Gói N`), folds two reports of the same `file:line` into one paragraph at the stronger level, and recounts `Tóm tắt` from the merged paragraphs instead of summing declared counts.
+- `playbooks/review-diff.md` gains a Fan-out section: ≤10 files → one reviewer per lens; larger diffs keep `review_packages.py split` plus one `--lens contract` reviewer over the whole range; the merge → fix → verify-at-HEAD loop closes once.
+- `rules/review-diff.md`, `skills/fe-kit/SKILL.md`, `agents/reviewer.md` (accepts `--lens`, may run `review_lenses.py`), `references/review-output.md` (`Lens:` line), `extensions/auto-review.ts` (the post-edit note now prescribes the fan-out), and `README.md` carry the same flow. `agents/reviewer.md` drops its `model: opus` pin: the reviewer runs on whatever model the host gives it.
+- Version 1.37.0 in `.devin-plugin/plugin.json`, `.claude-plugin/plugin.json`, `package.json`, and both places in `marketplace.json`.
+
+
+## 1.36.0
+
+The "do not grade a diff you wrote" rule only fired on frontend sessions: a plain `.ts` utility rewrite skipped the fresh-context review, and an agent reading `PostToolUse`/`PreToolUse` on a non-`.tsx` file never saw the review context. `extensions/auto-review.ts` already injected the review note after every edit, so the gap was only in the rule text and the Python gates.
+
+- `rules/review-diff.md`, `skills/fe-kit/playbooks/review-diff.md`, `agents/reviewer.md`, and `skills/fe-kit/SKILL.md` now scope the fresh-context review to any source file, not only frontend.
+- `scripts/fe-gate.py`: `UserPromptSubmit` injects the review context on an authoring prompt (`author_hit`), `PreToolUse` injects it on any `source_hit` write, `PostToolUse` emits the bug-fix handoff on any `source_hit`, and a new `transcript_has_code` keeps the review rule in the compact summary and the `SessionStart` resume context for sessions that only edited non-frontend code.
+- `scripts/devin_gate.py`: same `author_hit`/`source_hit` triggers; `PreToolUse` records `state["edited"]` for non-gated source files so `PostCompaction`/`SessionStart` resume still reminds the reviewer rule.
+- Version 1.36.0 in `.devin-plugin/plugin.json`, `.claude-plugin/plugin.json`, `package.json`, and both places in `marketplace.json`.
+
+
 ## 1.35.0
 
 omp has no hook to spawn a reviewer subagent after an edit the way Claude Code wires one, so the "reviewer runs after each diff" behavior never fired on omp — the skill could only tell the agent to do it, nothing enforced it.
 
 - New `extensions/auto-review.ts`: on every `edit`/`write`/`ast_edit` `tool_result`, appends an `[auto-review]` note instructing the agent to run the fe-kit reviewer (or `skill://fe-kit/playbooks/review-diff.md`) on the changed files; `before_agent_start` attaches the collected file list so the review names its targets; `session_start` clears the set. It is an injected instruction, not a spawned subagent — omp extensions cannot start tasks from handlers.
 - `package.json` `omp.extensions` registers it next to `fe-gate.ts`; `README.md` and `CODEMAP.md` list it.
-- Version 1.35.0 in `.claude-plugin/plugin.json`, `package.json`, and both places in `marketplace.json`.
+- Version 1.35.0 in `.devin-plugin/plugin.json`, `.claude-plugin/plugin.json`, `package.json`, and both places in `marketplace.json`.
 
 ## 1.34.0
 
@@ -14,7 +35,7 @@ A silent depth choice on an ambiguous "improve" request wasted rounds: a nested-
 
 - New `skills/refactor-depth-options/SKILL.md`: when an improve/refactor/clean-up request omits depth, enumerate the ladder — keep shape, change pattern (table/rule list, `find` + `??`), restructure — with a one-line tradeoff each, recommend one with a reason tied to the code's shape, then ask or proceed while naming the alternatives not taken. Skip conditions: a single viable level or a request that already names the depth. Vietnamese triggers included.
 - `README.md` gains the "Độ sâu refactor" section, a structure line, and a Đọc tiếp row; `CODEMAP.md` lists the new skill folder.
-- Version 1.34.0 in `.claude-plugin/plugin.json`, `package.json`, and both places in `marketplace.json`.
+- Version 1.34.0 in `.devin-plugin/plugin.json`, `.claude-plugin/plugin.json`, `package.json`, and both places in `marketplace.json`.
 
 ## 1.33.0
 
@@ -23,7 +44,8 @@ The Fowler catalog covers intra-class moves, but a frontend refactor hits moves 
 - New `references/frontend-moves.md`: 15 FE-shaped moves (FM1–FM15) in Fowler's move format — signal, mechanics, and a "Đừng khi" guard. Four groups: state placement (lift state up, colocate state down, prop drilling → composition/context, effect → derived state), component split axes (split by change axis not by code kind, extract custom hook, extract list item, effect → event handler), async and fetch (then-chains → async/await, serial → parallel where the dependency is not real, fetch-in-effect → the repo's data layer, unstable deps → stable), and data/render (repeated JSX → typed record + map, abort/cleanup for async effects, code-split at route boundaries). Each move says when NOT to apply it — the guard is the point.
 - `playbooks/refactor-ui.md` step 7 sends FE-shaped cures to the new catalog alongside `patterns.md`.
 - `references/fowler-checklist.md` points at the new file.
-- Version 1.33.0 in `plugin.json`, `package.json`, and both places in `marketplace.json`.
+- Version 1.33.0 in `.devin-plugin/plugin.json`, `.claude-plugin/plugin.json`, `package.json`, and both places in `marketplace.json`.
+- `scripts/devin_gate.py` ports the pre-commit handoff gate: `git commit` over exec is blocked until `.fe-kit/handoff.md` is written, Q&A'd in chat, and approved by the user, matching the Claude gate since upstream 1.29.0.
 
 ## 1.32.0
 
@@ -81,6 +103,19 @@ A reviewer could score structure yet had no index to name what it found. `fowler
 - `playbooks/refactor-ui.md` step 7 reads `smells-checklist.md` then `fowler-checklist.md`: the first names smells on the code the refactor will touch, before the first edit; the second scores what it touched.
 - `references/fowler-checklist.md` points at the new index.
 - Version 1.27.0 in `plugin.json`, `package.json`, and both places in `marketplace.json`.
+
+## 1.26.1
+
+Devin runs plugin hooks without `CLAUDE_PLUGIN_ROOT` in the environment, so every `hooks/hooks.json` command resolved to `/scripts/fe-gate.sh` and failed with `Command exited with code 127` on each prompt and tool call. The Devin host injects `DEVIN_PLUGIN_ROOT` for plugin hooks (with `PLUGIN_ROOT` as a further fallback).
+
+- `hooks/hooks.json`: each command is now `sh -c 'R="${DEVIN_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}}"; [ -f "$R/scripts/fe-gate.sh" ] || R=$(cygpath -u "$R" 2>/dev/null || printf %s "$R"); [ -f "$R/scripts/fe-gate.sh" ] || exit 0; exec sh "$R/scripts/fe-gate.sh"'`. The first env var that exists wins, `cygpath` still normalizes the root on Git Bash for Claude Code on Windows, and a root that yields no script exits 0 instead of surfacing a 127 hook failure.
+- Version 1.26.1 in `.devin-plugin/plugin.json`, `.claude-plugin/plugin.json`, `package.json`, and both places in `marketplace.json`.
+
+## 1.26.0
+
+- Devin CLI host: `.devin-plugin/plugin.json`, root `hooks.json`, `scripts/devin-gate.sh`, and `scripts/devin_gate.py`. The Devin payload carries the prompt and `prompt_id`, so the gate keys labels by request without reading a transcript. Block uses `{"decision": "block"}`; `PreCompact` has no Devin equivalent, so `PostCompaction` and `SessionStart` on resume re-inject the pointer. Rules ship `trigger: always_on`; the reviewer agent declares `allowed-tools` for Devin next to `tools`/`model` for Claude Code.
+- `rules/review-diff.md`, `skills/fe-kit/SKILL.md`, and `agents/reviewer.md` name the Devin reviewer path (`fe-kit:reviewer` subagent).
+- `scripts/test_versions.py` also checks `.devin-plugin/plugin.json`.
 
 ## 1.26.0
 

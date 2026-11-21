@@ -883,6 +883,27 @@ def transcript_has_frontend(event):
         return False
     return False
 
+CODE_EDIT_RE = re.compile(
+    r'"file_path"\s*:\s*"[^"]*\.(tsx?|jsx?|mjs|cjs|vue|svelte|py|go|rs|java|kt|kts|rb|php|cs|swift)"',
+    re.I,
+)
+
+def transcript_has_code(event):
+    # A code-editing session that never mentioned frontend still owes a fresh-eyes review.
+    if transcript_has_frontend(event):
+        return True
+    transcript = event.get("transcript_path") or ""
+    if not transcript or not os.path.isfile(transcript):
+        return False
+    try:
+        with open(transcript, encoding="utf-8", errors="ignore") as handle:
+            for line in handle:
+                if CODE_EDIT_RE.search(line):
+                    return True
+    except OSError:
+        return False
+    return False
+
 def project_root(start):
     env_root = os.environ.get("CLAUDE_PROJECT_DIR") or ""
     if env_root and os.path.isdir(env_root):
@@ -933,10 +954,11 @@ def fail(message):
     sys.exit(2)
 
 if name == "PreCompact":
-    if transcript_has_frontend(event):
+    if transcript_has_code(event):
         sys.stdout.write(
             "Keep these rules in the summary. Read skill://fe-kit before a non-trivial frontend edit. "
-            "Do not grade a frontend diff you wrote. A fresh reviewer reads the fe-kit review-diff playbook. "
+            "Keep the review rule in the summary. Do not grade a diff you wrote — "
+            "a fresh reviewer reads the fe-kit review-diff playbook for any source file, not only frontend. "
             "A different job goes in a new file, per rules/modules.md. "
             "Keep any Architecture ownership and Reuse Decision already recorded.\n"
         )
@@ -953,15 +975,16 @@ if name == "PostToolUse":
         errors.append(rule_error)
     if errors:
         fail("\n".join(errors))
-    if path_hit and user_is_bug(event.get("transcript_path") or ""):
+    if source_hit and user_is_bug(event.get("transcript_path") or ""):
         emit(name, [
             "Write or update the unit test beside the owner. It must fail on Actual and pass on Expected. For a text check, include undefined, null, empty, leading space, and trailing space. Then re-run that test and the reproduction. Hand this diff to fe-kit:reviewer or a fresh context that reads skill://fe-kit/playbooks/review-diff.md. Do not write the verdict."
         ])
     sys.exit(0)
 
 bodies = []
-if name == "SessionStart" and event.get("source") == "compact" and transcript_has_frontend(event):
-    bodies.append(load_rule("fe-implementation.md"))
+if name == "SessionStart" and event.get("source") == "compact" and transcript_has_code(event):
+    if transcript_has_frontend(event):
+        bodies.append(load_rule("fe-implementation.md"))
     bodies.append(rule_bundle())
     bodies.append(review_context())
     if project_config_context():
@@ -973,7 +996,7 @@ elif name == "UserPromptSubmit":
             bodies.append(project_config_context())
     if (prompt_hit or reuse_hit or author_hit or bug_hit) and not (wording_hit and not bug_hit):
         bodies.append(rule_bundle())
-    if prompt_hit or review_hit:
+    if prompt_hit or review_hit or author_hit:
         bodies.append(review_context())
     if conflict_hit or repo_in_conflict(cwd):
         bodies.append(load_rule("conflict-fix.md"))
@@ -982,6 +1005,7 @@ elif name == "PreToolUse":
         bodies.append(load_rule("fe-implementation.md"))
     if source_hit:
         bodies.append(rule_bundle())
+        bodies.append(review_context())
     if file_has_markers(full_path) or repo_in_conflict(cwd):
         bodies.append(load_rule("conflict-fix.md"))
 

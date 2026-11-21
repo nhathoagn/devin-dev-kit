@@ -384,6 +384,22 @@ def run_special():
     check("review prompt always carries the project rules command",
           "allow" if "Project rules command: python3" in prompt_out("review diff trước commit", no_config)
           and "project_config.py" in prompt_out("review diff trước commit", no_config) else "deny", "allow")
+    check("authoring prompt injects the review rule",
+          "allow" if "Do not grade a diff you wrote" in prompt_out("implement a helper to sum numbers", no_config) else "deny", "allow")
+    non_fe_write = call_gate({"hook_event_name": "PreToolUse", "tool_name": "Write",
+                              "tool_input": {"file_path": "util/sum.py", "content": "x"}, "cwd": TMP})
+    check("a non-frontend source write injects the review rule",
+          "allow" if "Do not grade a diff you wrote" in non_fe_write else "deny", "allow")
+    code_transcript = write_transcript("code-only.jsonl", [
+        U("implement a helper"),
+        A([{"type": "tool_use", "name": "Edit", "input": {"file_path": "util/sum.py", "old_string": "a", "new_string": "b"}}]),
+    ])
+    resume_out = call_gate({"hook_event_name": "SessionStart", "source": "compact",
+                            "transcript_path": code_transcript, "cwd": TMP})
+    check("compact resume for a code-only session injects the review rule",
+          "allow" if "Do not grade a diff you wrote" in resume_out else "deny", "allow")
+    check("code-only resume does not inject the frontend implementation rule",
+          "allow" if "behaviorless by what it changes" not in resume_out else "deny", "allow")
     check("wording prompt in a config repo gets no config line",
           "allow" if ".fe-kit/config.yaml" not in prompt_out("đổi màu nút", with_config) else "deny", "allow")
 

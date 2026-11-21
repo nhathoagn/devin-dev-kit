@@ -1,7 +1,7 @@
 # fe-kit
 
 ![version](https://img.shields.io/badge/version-1.22.0-blue)
-![hosts](https://img.shields.io/badge/hosts-Claude%20Code%20%7C%20omp-6e56cf)
+![hosts](https://img.shields.io/badge/hosts-Claude%20Code%20%7C%20Devin%20%7C%20omp-6e56cf)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
 **Plugin frontend bắt agent ghi rõ ai sở hữu code và dùng lại hay viết mới — trước khi được sửa một dòng.**
@@ -11,7 +11,7 @@ nằm trong page, cùng một block code chép ở ba nơi, một giá trị đ�
 `useState` thứ hai. Diff đọc vẫn sạch. Nợ chỉ lộ ra sau vài tháng.
 
 fe-kit chèn đúng hai câu hỏi vào chỗ đó. Agent không trả lời được thì không sửa file.
-Một plugin, chạy trên Claude Code và omp.
+Một plugin, chạy trên Claude Code, Devin CLI và omp.
 
 ---
 
@@ -52,9 +52,6 @@ hook, hay module nào thật sự giữ state và business rule. Không có nhã
 hoặc `shared`. `shared` chỉ hợp lệ khi có từ hai consumer thật trở lên, nêu tên.
 Bug fix còn bị hỏi: giá trị này đã có state hay prop nào giữ chưa?
 
-**Tác giả tự chấm bài mình.** Người viết diff không được review diff đó. Claude Code có
-agent `fe-kit:reviewer` read-only; omp dùng một context sạch chỉ nhận diff range và playbook.
-
 **Người đọc không debug được.** Trước `git commit`, agent phải viết `.fe-kit/handoff.md`:
 Logic, Implementation (từng file và hàm giữ bước nào), Decisions, Debug without AI (lệnh
 reproduce, file:line để xem, lỗi nghĩa là gì, cách xác nhận fix, rollback), Risks, Q&A.
@@ -62,6 +59,9 @@ Agent hỏi bạn 3–5 câu về state holder, nhánh dễ sót và check chứ
 được ghi lại. Bạn chạy lệnh approve trong `skills/fe-kit/references/handoff.md`; commit bị
 chặn đến lúc đó, và sửa file sau khi approve thì phải approve lại. Repo muốn tắt:
 `handoff: "off"` trong `.fe-kit/config.yaml`.
+
+**Tác giả tự chấm bài mình.** Người viết diff không được review diff đó. Claude Code có
+agent `fe-kit:reviewer` read-only; omp dùng một context sạch chỉ nhận diff range và playbook.
 
 ---
 
@@ -86,6 +86,7 @@ Người viết diff không được chấm diff đó.
 |---|---|
 | Claude Code | Agent `fe-kit:reviewer`, tool `Read` / `Grep` / `Glob` / `Bash`, không sửa, không commit, không spawn reviewer khác |
 | omp | Một context mới, nhiệm vụ duy nhất là diff range + `skill://fe-kit/playbooks/review-diff.md` |
+| Devin | Subagent `fe-kit:reviewer`, tool `read` / `grep` / `glob` / `exec`, không sửa, không commit, không spawn reviewer khác |
 
 Không đưa ghi chú của tác giả. Reviewer thiếu playbook path trong task thì dừng, không tự bịa checklist.
 Nó đi hết `references/REVIEW_CHECKLIST.md` rồi F1–F22 trong `references/review-checks.md`, và
@@ -149,17 +150,21 @@ Request đã chỉ rõ depth ("just flatten", "giữ cấu trúc") thì không b
 | `conflict-fix.md` | Resolve conflict bằng hai block dán cạnh nhau, hoặc mất một phía |
 | `review-diff.md` | Tác giả chấm diff của chính mình |
 
-## Hai host khác nhau ở đâu
+## Ba host khác nhau ở đâu
 
-| Khả năng | Claude Code | omp |
-|---|---|---|
-| Rule theo prompt | Hook `UserPromptSubmit` inject | Rule always-on; badge `⚡ rules` báo prompt khớp |
-| Chặn edit | Hook `PreToolUse` | `extensions/fe-gate.ts` trên `tool_call` |
-| Kiểm sau khi ghi | Hook `PostToolUse`, exit 2 | Cùng extension, lỗi nằm trong tool result |
-| Sau compact | `SessionStart` + `PreCompact` nạp lại rule | Không cần, rule vẫn bật |
-| Verdict hiển thị | Không | Status line: `✓ ok`, `✎ note`, `⛔ blocked`, `⚡ rules` |
+| Khả năng | Claude Code | Devin | omp |
+|---|---|---|---|
+| Rule theo prompt | Hook `UserPromptSubmit` inject | Cùng hook, cộng thêm `trigger: always_on` | Rule always-on; badge `⚡ rules` báo prompt khớp |
+| Chặn edit | Hook `PreToolUse` (`Write\|Edit\|MultiEdit\|Bash`) | Hook `PreToolUse` (`edit\|write\|apply_patch\|exec`) | `extensions/fe-gate.ts` trên `tool_call` |
+| Kiểm sau khi ghi | Hook `PostToolUse`, exit 2 | Hook `PostToolUse`, exit 2 | Cùng extension, lỗi nằm trong tool result |
+| Nhận diện bug / request | Đọc `transcript_path` | `prompt` + `prompt_id` trong payload, state file theo `session_id` | Như Devin |
+| Sau compact | `SessionStart` + `PreCompact` nạp lại rule | `PostCompaction` + `SessionStart` trên resume | Không cần, rule vẫn bật |
+| Verdict hiển thị | Không | Không | Status line: `✓ ok`, `✎ note`, `⛔ blocked`, `⚡ rules` |
 
-Cả hai dùng chung `scripts/fe-gate.sh` → `scripts/fe-gate.py`. Một chỗ sửa, hai host cùng đổi.
+Claude Code và omp dùng chung `scripts/fe-gate.sh` → `scripts/fe-gate.py`. Devin chạy `scripts/devin-gate.sh` →
+`scripts/devin_gate.py`, dùng lại `wording.py`, `bash_target.py`, `label_store.py`, `project_config.py` và toàn bộ
+`rules/` + skill. Payload Devin đã chứa `prompt` và `prompt_id`, nên gate không đọc transcript: `prompt_id` quay theo
+mỗi tin nhắn user và định phạm vi nhãn của request.
 
 ---
 
@@ -214,9 +219,16 @@ Có sẵn `presets/legacy-rewrite/` cho dự án viết lại hệ cũ: giống 
 Sau review, `scripts/review_check.py` kiểm report: câu verdict, mức của từng lỗi, `file:dòng` có thật,
 và mục `Nguồn và độ phủ` nêu đủ file trong diff.
 
-Diff trên 10 file: `scripts/review_packages.py split` chia gói (tối đa 15 file), mỗi gói một reviewer chạy song song,
-rồi `review_packages.py merge` gộp report. Review lại: `scripts/review_record.py save` lưu report và sha vào
-`.fe-kit/reviews/<branch>.md`; lần sau `review_record.py last` cho sha đó, reviewer chỉ đọc phần đổi và kiểm lại lỗi cũ.
+Diff đến 10 file: `scripts/review_lenses.py list` chia diff thành sáu góc nhìn (vệ sinh diff, đúng biên
+và luồng, hợp đồng/caller/spec/test, kiến trúc và dùng lại, tên và mở rộng, tải và hiệu năng) — mỗi lens
+một reviewer chạy song song, mỗi item của checklist thuộc đúng một lens nên không mục nào bị sót hay soi
+hai lần. Diff trên 10 file: `scripts/review_packages.py split` chia gói (tối đa 15 file), mỗi gói một
+reviewer chạy song song, cộng thêm một reviewer `--lens contract` trên toàn range cho caller, spec, và
+test bắc cầu giữa các gói. `review_packages.py merge` gộp report: hai lens thấy cùng một `file:dòng`
+gom thành một đoạn ghi cả hai nguồn. Sau khi sửa xong một lượt, một reviewer mới kiểm lại từng finding
+ở HEAD; finding còn đúng thì quay lại sửa một lần. Review lại: `scripts/review_record.py save` lưu report
+và sha vào `.fe-kit/reviews/<branch>.md`; lần sau `review_record.py last` cho sha đó, reviewer chỉ đọc
+phần đổi và kiểm lại lỗi cũ.
 
 ---
 
@@ -241,6 +253,17 @@ omp plugin install fe-kit@fe-kit
 
 Trong TUI: `/marketplace add …` rồi `/marketplace install fe-kit@fe-kit`.
 
+**Devin CLI**
+
+```bash
+devin plugins install nhathoagn/plugin-architecture
+devin plugins info fe-kit
+```
+
+`devin plugins install --local ./plugin-architecture` link bản trên đĩa (cần quyền symlink; trên Windows
+thiếu quyền thì cài qua GitHub như trên). Subagent `fe-kit:reviewer` chỉ chạy ở CLI/Desktop, không có trong
+Devin Cloud session — ở đó hand-off cho một phiên đọc playbook như omp.
+
 **Bản đang sửa trên đĩa**
 
 ```bash
@@ -257,14 +280,19 @@ omp plugin link .
 ## Cấu trúc
 
 ```text
-.claude-plugin/          manifest + marketplace
+.claude-plugin/          manifest + marketplace (Claude Code)
+.devin-plugin/plugin.json manifest Devin
 hooks/hooks.json         hook cho Claude Code
+hooks.json               hook cho Devin (tool name thường, event riêng)
+scripts/devin_gate.py    gate cho Devin (không đọc transcript)
+scripts/devin-gate.sh    wrapper sh cho Devin
 scripts/fe-gate.sh|py    gate dùng chung hai host
 scripts/wording.py       lexer JS/TS/JSX + token diff cho wording/style
 scripts/project_config.py  file thay đổi → luật dự án cần đọc (.fe-kit/config.yaml hoặc tự tìm)
 scripts/review_check.py  kiểm report review-diff trước khi gửi
 scripts/review_packages.py  chia diff lớn thành gói, gộp report các gói
 scripts/review_record.py lưu review theo nhánh, đọc lại cho lần sau
+scripts/review_lenses.py  chia review thành sáu góc nhìn, một reviewer mỗi lens
 scripts/yaml_subset.py   đọc tập con YAML, không cần pyyaml
 presets/                 luật theo loại dự án (legacy-rewrite)
 extensions/fe-gate.ts    adapter omp + test

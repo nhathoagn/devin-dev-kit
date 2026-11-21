@@ -9,20 +9,22 @@ Run this skill before implementing or refactoring non-trivial frontend work (com
 
 Do not write code until ownership and reuse decisions are recorded.
 
-Pick one playbook. Read that file from this skill directory. On omp, use `skill://fe-kit/playbooks/<file>`. Do not read the other playbooks.
+Pick one playbook. Read that file from this skill directory. On omp, use `skill://fe-kit/playbooks/<file>`. On Devin, read the `playbooks/<file>` path under this skill's directory. Do not read the other playbooks.
 
 | Task | Playbook |
 |---|---|
 | New component, page, form, or hook | `playbooks/new-ui.md` |
 | Wrong behavior, a wrong value, a broken flow, or a symptom report | `playbooks/fix-bug.md` |
-| A frontend diff before commit. The author does not run this. | `playbooks/review-diff.md` |
+| Any diff before commit, frontend or not. The author does not run this. | `playbooks/review-diff.md` |
 | Split, move, or restructure existing UI | `playbooks/refactor-ui.md` |
 | Waterfall, bundle, rerender, or list jank | `playbooks/perf-ui.md` |
 | Check, review, clean up, or shorten existing UI | `playbooks/review-ui.md` |
 
 Before the playbook's first edit, read the project rules. List the files you will create or change (`rules/modules.md`). Run `python3 ../../scripts/project_config.py --root <repo> --mode author --files <those files>` from this skill folder, or the full command the hook context gives. Read each `read:` line. A project rule wins over this skill on a name, a layer, or a pattern. Verify with each `gate:` command. The repo file `.fe-kit/config.yaml` is optional: with no config, the command searches `AGENTS.md`, `CLAUDE.md`, and `rules/` folders. A review playbook does its own project-rules step.
 
-If you wrote the diff, do not open `playbooks/review-diff.md`. Hand the diff to agent `fe-kit:reviewer` on Claude Code, or to a fresh omp context whose only task is the diff range and `skill://fe-kit/playbooks/review-diff.md`. The hand-off holds the diff range, the playbook path, the gate result (each `gate:` command and its exit code, which you run before the hand-off), and the path of a design file a person approved, when one exists. Do not include your notes. That reviewer follows the playbook and does not spawn another reviewer. If you were given only the diff and the playbook path, you are that reviewer. If you cannot start the reviewer, stop. Do not write the verdict.
+If you wrote the diff — on any source file, not only frontend — do not open `playbooks/review-diff.md`. Hand the diff to agent `fe-kit:reviewer` on Claude Code, to the `fe-kit:reviewer` subagent on Devin (spawn it with `run_subagent`), or to a fresh omp context whose only task is the diff range and `skill://fe-kit/playbooks/review-diff.md`. The hand-off holds the diff range, the playbook path, the gate result (each `gate:` command and its exit code, which you run before the hand-off), and the path of a design file a person approved, when one exists. Do not include your notes. That reviewer follows the playbook and does not spawn another reviewer. If you were given only the diff and the playbook path, you are that reviewer. If you cannot start the reviewer, stop. Do not write the verdict.
+
+Run that hand-off once per lens, not once per diff. `scripts/review_lenses.py list` prints the six lenses; a diff of 10 files or fewer gets one reviewer per lens in parallel, and each hand-off adds `--lens <name>` so the reviewer walks only its items. A diff larger than 10 files keeps the package split below — each reviewer runs the whole checklist on its package — plus one extra `--lens contract` reviewer over the whole range for callers, spec, and tests that cross package borders. Merge the reports with `review_packages.py merge`; a finding two lenses see on the same `file:line` becomes one paragraph. Fix every merged finding in one pass, run the gate commands, then hand the findings list and the new diff to one fresh reviewer that checks each finding at HEAD. A finding still open goes back to the fix pass once.
 
 Two scripts from this skill folder keep the hand-off mechanical:
 

@@ -57,7 +57,22 @@ def merge_cases():
     check("each package conclusion kept, verdict word removed",
           "Gói 1: Một việc ở gói này." in parts["Kết luận"][1] and "Gói 2:" in parts["Kết luận"][1], True)
     check("findings of both packages kept", ("lỗi A" in merged, "lộ key" in merged), (True, True))
-    check("counts summed", "Việc chặn đưa lên: 1. Việc nên sửa trong lượt này: 1. Việc có thể để sau: 1." in merged, True)
+    check("counts come from merged paragraphs, not declared sums",
+          "Việc chặn đưa lên: 1. Việc nên sửa trong lượt này: 1. Việc có thể để sau: 0." in merged, True)
+    check("each finding names its lens", ("(Góc nhìn: Gói 1)" in merged, "(Góc nhìn: Gói 2)" in merged), (True, True))
+    dup_a = report("Sửa rồi hãy đưa.", "`a.tsx:3` lỗi A. Nên sửa trong lượt này.", (0, 1, 0), "web/rules/a.md", "`src/a/` ✔")
+    dup_b = report("Sửa rồi hãy đưa.", "`a.tsx:3` cũng lỗi này. Có thể để sau.", (0, 0, 1), "web/rules/b.md", "`src/a/` ✔")
+    deduped = review_packages.merge([dup_a, dup_b])
+    check("two lenses on one spot merge into one paragraph", deduped.count("`a.tsx:3`"), 2)
+    check("the weaker level is folded, not kept", deduped.count("thể để sau"), 1)
+    check("the merged paragraph names both sources", "(Góc nhìn: Gói 1, Gói 2)" in deduped, True)
+    check("deduped count is one", "Việc nên sửa trong lượt này: 1." in deduped, True)
+    lens_a = report("Sửa rồi hãy đưa.", "`a.tsx:5` lỗi A. Nên sửa trong lượt này.", (0, 1, 0), "không có luật dự án", "`src/a/` ✔")
+    lens_b = report("Sửa rồi hãy đưa.", "`b.tsx:2` lỗi B. Nên sửa trong lượt này.", (0, 1, 0), "không có luật dự án", "`src/b/` ✔")
+    lens_b = lens_b.replace("Luật đã đọc:", "Lens: correctness\nLuật đã đọc:")
+    merged = review_packages.merge([lens_a, lens_b])
+    check("a Lens: line names the lens instead of Gói", "(Góc nhìn: correctness)" in merged, True)
+    merged = review_packages.merge([one, two])
     check("rules read is a union, no repeat",
           review_check.label_value(merged, "Luật đã đọc:"), "web/rules/a.md, web/rules/b.md, web/rules/c.md")
     check("coverage joined", review_check.label_value(merged, "Độ phủ:"), "`src/a/` ✔ · `src/b/` ✔")

@@ -59,6 +59,64 @@ def _strip_verdict(sentence):
 def _join(lines):
     return "\n".join(lines).strip()
 
+FINAL_LEVEL_RE = re.compile(
+    r"[^.]*?(?:nên sửa trước|nên sửa trong lượt này|có thể để sau)\s*\.?\s*$",
+    re.I,
+)
+
+def _blocks(section_lines):
+    text = _join(section_lines)
+    return [block.strip() for block in re.split(r"\n\s*\n", text) if block.strip()] if text else []
+
+def _ref_key(block):
+    # The first `path:line` citation identifies the spot a finding is about.
+    match = review_check.REF_RE.search(block)
+    return (match.group(1), match.group(2)) if match else None
+
+def _level(block):
+    lowered = block.lower()
+    for index, level in enumerate(review_check.LEVELS):
+        if level in lowered:
+            return index
+    return len(review_check.LEVELS)
+
+def _merge_findings(parsed, texts):
+    """One spot, one paragraph: a finding two lenses see on the same `path:line`
+    becomes the stronger block plus the weaker text with its level sentence removed."""
+    merged = []
+    seen = {}
+    for number, (text, parts) in enumerate(zip(texts, parsed), start=1):
+        lens = review_check.label_value(text, "Lens:") or "Gói %d" % number
+        for block in _blocks(parts.get("Việc cần sửa", [])):
+            if _ref_key(block) is None and _level(block) >= len(review_check.LEVELS):
+                continue
+            key = _ref_key(block)
+            if key is not None and key in seen:
+                index = seen[key]
+                level, kept, lenses, extra = merged[index]
+                if _level(block) < level:
+                    extra.insert(0, FINAL_LEVEL_RE.sub("", kept).strip())
+                    merged[index] = (_level(block), block, lenses, extra)
+                else:
+                    stripped = FINAL_LEVEL_RE.sub("", block).strip()
+                    if stripped:
+                        extra.append(stripped)
+                if lens not in lenses:
+                    lenses.append(lens)
+                continue
+            if key is not None:
+                seen[key] = len(merged)
+            merged.append((_level(block), block, [lens], []))
+    out = []
+    for _, block, lenses, extra in merged:
+        body = block + (" " + " ".join(extra) if extra else "")
+        out.append(body + " (Góc nhìn: %s)" % ", ".join(lenses))
+    counts = [0, 0, 0]
+    for level, _, _, _ in merged:
+        if level < len(counts):
+            counts[level] += 1
+    return "\n\n".join(out), counts
+
 
 def merge(reports):
     """Return one report from the package reports, in package order."""
@@ -74,37 +132,39 @@ def merge(reports):
         verdicts.append(verdict)
         rest = _strip_verdict(" ".join(body))
         if rest:
-            conclusions.append("Gói %d: %s" % (number, rest))
+            conclusions.append("%s: %s" % (review_check.label_value(text, "Lens:") or "Gói %d" % number, rest))
     worst = min(verdicts, key=review_check.VERDICTS.index)
 
     out = ["# Kết quả review", "", "## Kết luận", "", " ".join([worst + "."] + conclusions), ""]
-    for name in ("Việc cần sửa", "Để yên"):
-        blocks = [_join(parts.get(name, [])) for parts in parsed]
-        blocks = [block for block in blocks if block]
-        if blocks:
-            out += ["## " + name, "", "\n\n".join(blocks), ""]
+    findings, counts = _merge_findings(parsed, reports)
+    if findings:
+        out += ["## Việc cần sửa", "", findings, ""]
+    left = [_join(parts.get("Để yên", [])) for parts in parsed]
+    left = [block for block in left if block]
+    if left:
+        out += ["## Để yên", "", "\n\n".join(left), ""]
 
-    totals = [0, 0, 0]
-    for parts in parsed:
-        summary = _join(parts.get("Tóm tắt", []))
-        for index, label in enumerate(COUNT_LABELS):
-            match = re.search(re.escape(label) + r":\s*(\d+)", summary)
-            totals[index] += int(match.group(1)) if match else 0
-    out += ["## Tóm tắt", "", " ".join("%s: %d." % (label, total) for label, total in zip(COUNT_LABELS, totals)), ""]
+    out += ["## Tóm tắt", "", " ".join("%s: %d." % (label, total) for label, total in zip(COUNT_LABELS, counts)), ""]
 
     rules = []
     gates = []
     coverage = []
     for text in reports:
         for item in re.split(r",\s*", review_check.label_value(text, "Luật đã đọc:") or ""):
-            if item and item not in rules:
+            item = item.strip().strip(".")
+            if item and item != "không có luật dự án" and item not in rules:
                 rules.append(item)
         gate = review_check.label_value(text, "Cổng:")
-        if gate and gate not in gates:
-            gates.append(gate)
+        if gate:
+            gate = gate.strip().rstrip(".")
+            if gate not in gates:
+                gates.append(gate)
         cover = review_check.label_value(text, "Độ phủ:")
         if cover:
-            coverage.append(cover)
+            for token in cover.split("·"):
+                token = token.strip()
+                if token and token not in coverage:
+                    coverage.append(token)
     out += ["## Nguồn và độ phủ", "",
             "Luật đã đọc: " + (", ".join(rules) or "không có luật dự án"),
             "Cổng: " + (" · ".join(gates) or "chưa chạy (task không gửi kết quả)"),

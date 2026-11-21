@@ -1,0 +1,58 @@
+{
+  "UserPromptSubmit": [
+    {
+      "matcher": "",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "sh -c 'R=\"${DEVIN_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}}\"; [ -f \"$R/scripts/devin-gate.sh\" ] || exit 0; exec sh \"$R/scripts/devin-gate.sh\"'"
+        }
+      ]
+    }
+  ],
+  "PreToolUse": [
+    {
+      "matcher": "^(exec|edit|write|apply_patch)$",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "sh -c 'R=\"${DEVIN_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}}\"; [ -f \"$R/scripts/devin-gate.sh\" ] || exit 0; exec sh \"$R/scripts/devin-gate.sh\"'"
+        }
+      ]
+    }
+  ],
+  "PostToolUse": [
+    {
+      "matcher": "^(edit|write|apply_patch)$",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "sh -c 'R=\"${DEVIN_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}}\"; [ -f \"$R/scripts/devin-gate.sh\" ] || exit 0; exec sh \"$R/scripts/devin-gate.sh\"'",
+          "timeout": 180
+        }
+      ]
+    }
+  ],
+  "SessionStart": [
+    {
+      "matcher": "",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "sh -c 'R=\"${DEVIN_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}}\"; [ -f \"$R/scripts/devin-gate.sh\" ] || exit 0; exec sh \"$R/scripts/devin-gate.sh\"'"
+        }
+      ]
+    }
+  ],
+  "PostCompaction": [
+    {
+      "matcher": "",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "sh -c 'R=\"${DEVIN_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}}\"; [ -f \"$R/scripts/devin-gate.sh\" ] || exit 0; exec sh \"$R/scripts/devin-gate.sh\"'"
+        }
+      ]
+    }
+  ]
+}

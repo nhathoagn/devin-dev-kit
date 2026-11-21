@@ -20,6 +20,7 @@ def versions():
     marketplace = read_json(".claude-plugin/marketplace.json")
     found = [
         (".claude-plugin/plugin.json", read_json(".claude-plugin/plugin.json")["version"]),
+        (".devin-plugin/plugin.json", read_json(".devin-plugin/plugin.json")["version"]),
         ("package.json", read_json("package.json")["version"]),
         (".claude-plugin/marketplace.json metadata", marketplace["metadata"]["version"]),
     ]
