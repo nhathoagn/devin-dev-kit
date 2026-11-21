@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.35.0
+
+omp has no hook to spawn a reviewer subagent after an edit the way Claude Code wires one, so the "reviewer runs after each diff" behavior never fired on omp — the skill could only tell the agent to do it, nothing enforced it.
+
+- New `extensions/auto-review.ts`: on every `edit`/`write`/`ast_edit` `tool_result`, appends an `[auto-review]` note instructing the agent to run the fe-kit reviewer (or `skill://fe-kit/playbooks/review-diff.md`) on the changed files; `before_agent_start` attaches the collected file list so the review names its targets; `session_start` clears the set. It is an injected instruction, not a spawned subagent — omp extensions cannot start tasks from handlers.
+- `package.json` `omp.extensions` registers it next to `fe-gate.ts`; `README.md` and `CODEMAP.md` list it.
+- Version 1.35.0 in `.claude-plugin/plugin.json`, `package.json`, and both places in `marketplace.json`.
+
 ## 1.34.0
 
 A silent depth choice on an ambiguous "improve" request wasted rounds: a nested-if file went flatten → over-corrected loop → revert → find+table because the option set was never shown. The user had to name the depth ("still too much if") before the right level appeared.

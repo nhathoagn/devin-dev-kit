@@ -37,6 +37,7 @@ plugin-architecture
 │   └── test_versions.py     plugin.json = package.json = marketplace.json = CHANGELOG
 ├── extensions/
 │   ├── fe-gate.ts           omp extension (khai báo `omp.extensions` trong package.json): map edit/ast_edit/write/bash sang payload gate (nhận old_string, oldText, oldString, old_str, old, search; edits[]), chặn edit thiếu nhãn qua tool_call, kiểm conflict/rules.sh sau ghi qua tool_result — gọi cùng scripts/fe-gate.sh; ghi verdict cuối (ok/blocked/note/rules) lên status line
+│   ├── auto-review.ts        omp extension: sau mỗi edit/write/ast_edit, append note bắt agent chạy fe-kit reviewer; tên file edit gom qua before_agent_start; reset theo session_start
 │   └── fe-gate.test.ts      29 case `node --test`, spawn gate thật (Windows: qua `sh`, đường dẫn dấu /)
 ├── rules/                   nội dung bơm vào prompt (hook nạp, không phải agent tự đọc)
 │   ├── fe-implementation.md quy trình edit: quyết định trước, code sau
