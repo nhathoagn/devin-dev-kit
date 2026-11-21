@@ -5,6 +5,6 @@
   "description": "Architecture ownership, reuse-first authoring, and React performance checks before non-trivial frontend work.",
   "license": "MIT",
   "omp": {
-    "extensions": ["./extensions/fe-gate.ts"]
+    "extensions": ["./extensions/fe-gate.ts", "./extensions/auto-review.ts"]
   }
 }
