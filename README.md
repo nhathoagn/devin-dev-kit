@@ -288,6 +288,7 @@ scripts/review_record.py lưu review theo nhánh, đọc lại cho lần sau
 scripts/yaml_subset.py   đọc tập con YAML, không cần pyyaml
 presets/                 luật theo loại dự án (legacy-rewrite)
 extensions/fe-gate.ts    adapter omp + test
+extensions/auto-review.ts  omp: sau edit bắt agent chạy fe-kit reviewer
 skills/fe-kit/           SKILL.md, 6 playbook, references, evals
 skills/ui-image-check/   so ảnh với code
 skills/ut-report/        báo cáo UT + build_report.py
