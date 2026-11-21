@@ -39,7 +39,8 @@ plugin-architecture
 │   ├── project_config.py    file thay đổi → luật dự án cần đọc: .fe-kit/config.yaml (rules, always_read, presets, spec_dirs, gate, exclude, legacy) hoặc tự tìm AGENTS.md/CLAUDE.md/rules/ từ root tới thư mục của file
 │   ├── yaml_subset.py       đọc tập con YAML bằng thư viện chuẩn; cú pháp ngoài tập con → YamlError kèm số dòng
 │   ├── review_check.py      kiểm report review-diff: verdict, mức lỗi, file:dòng có thật, mục Nguồn và độ phủ
-│   ├── review_packages.py   split: diff trên 10 file → gói tối đa 15 file, mỗi gói một reviewer; merge: gộp report các gói (verdict nặng nhất, cộng số lỗi)
+│   ├── review_packages.py   split: diff trên 10 file → gói tối đa 15 file, mỗi gói một reviewer; merge: gộp report các gói/lens (verdict nặng nhất, cùng file:dòng gom một đoạn)
+│   ├── review_lenses.py    list: 6 góc nhìn chia hết checklist (mỗi item một lens); items <lens>: mã item cho brief task
 │   ├── review_record.py     save: lưu report + sha vào .fe-kit/reviews/<branch>.md; last: in sha và lỗi cũ cho lần review sau
 │   ├── test_wording.py      85 test lexer/token diff
 │   ├── test_variable_rename.py  18 test: đổi tên biến là thay đổi hành vi, gate phải chặn
@@ -50,14 +51,13 @@ plugin-architecture
 │   ├── test_yaml_subset.py  52 test, so với pyyaml khi máy có
 │   ├── test_project_config.py  52 test glob, fallback, config, lỗi, preset, git, thư mục con, tên non-ASCII
 │   ├── test_review_check.py 25 test report
-│   ├── test_review_packages.py 19 test split/merge
+│   ├── test_review_packages.py 25 test split/merge/dedupe
 │   ├── test_review_record.py 15 test save/last
 │   ├── test_rule_copies.py  một câu luật chỉ nằm ở một file (rules/ → skill, SKILL.md → playbook)
 │   └── test_versions.py     plugin.json = .devin-plugin/plugin.json = package.json = marketplace.json = CHANGELOG
 ├── extensions/
 │   ├── fe-gate.ts           omp extension (khai báo `omp.extensions` trong package.json): map edit/ast_edit/write/bash sang payload gate (nhận old_string, oldText, oldString, old_str, old, search; edits[]), chặn edit thiếu nhãn qua tool_call, kiểm conflict/rules.sh sau ghi qua tool_result — gọi cùng scripts/fe-gate.sh; ghi verdict cuối (ok/blocked/note/rules) lên status line
 │   ├── auto-review.ts        omp extension: sau mỗi edit/write/ast_edit, append note bắt agent chạy fe-kit reviewer; tên file edit gom qua before_agent_start; reset theo session_start
-│   ├── variable-rename.test.ts  18 case chạy `tsx`: đổi tên biến là rename, đổi copy thì không
 │   └── fe-gate.test.ts      29 case `node --test`, spawn gate thật (Windows: qua `sh`, đường dẫn dấu /)
 ├── rules/                   nội dung bơm vào prompt (hook nạp); frontmatter thêm trigger: always_on cho Devin
 │   ├── fe-implementation.md quy trình edit: quyết định trước, code sau
@@ -176,19 +176,18 @@ Báo cáo: Verdict đứng đầu, mỗi miss là 1 câu, xong rồi dừng.
 ```text
 python3 scripts/test_wording.py          85 test lexer/token diff (copy vs code)
 python3 scripts/test_variable_rename.py  đổi tên biến → deny, đổi copy → allow (test gate thật)
-npx tsx extensions/variable-rename.test.ts 18 case cùng case, chạy trực tiếp kiểu nested-if.test.ts
-python3 scripts/test_fe_gate.py          223 case hành vi gate (deny/allow, intent, conflict, file type, Bash ghi file, nhãn khai báo, dòng project rules, handoff)
+python3 scripts/test_fe_gate.py          227 case hành vi gate (deny/allow, intent, conflict, file type, Bash ghi file, nhãn khai báo, dòng project rules, handoff)
 python3 scripts/test_bash_target.py      18 test Bash → file ghi (sed/perl -i, cp/mv, redirect trong quote)
 python3 scripts/test_handoff.py          13 test gate trước commit (thiếu file, thiếu section, approve, stale)
-python3 scripts/test_devin_gate.py       27 test gate Devin (inject, block, echo nhãn, bug repro, isolation)
+python3 scripts/test_devin_gate.py       30 test gate Devin (inject, block, echo nhãn, bug repro, isolation)
 python3 scripts/test_yaml_subset.py      52 test tập con YAML
 python3 scripts/test_project_config.py   52 test luật dự án
 python3 scripts/test_review_check.py     25 test kiểm report
-python3 scripts/test_review_packages.py  19 test chia gói, gộp report
+python3 scripts/test_review_packages.py  25 test chia gói, gộp report, gộp lỗi trùng
 python3 scripts/test_review_record.py    15 test lưu, đọc review cũ
 python3 scripts/test_rule_copies.py      không câu luật nào bị chép sang file khác
 python3 scripts/test_versions.py         version giống nhau ở mọi manifest + CHANGELOG
-node --test extensions/fe-gate.test.ts   29 test extension omp: verdict, prompt, chặn edit, wording
+node --test extensions/fe-gate.test.ts   30 test extension omp: verdict, prompt, chặn edit, wording
 cat skills/fe-kit/evals/triggers.json    16 query mẫu: should_trigger true/false — kiểm intent regex
 sh scripts/fe-gate.sh < event.json        chạy thật 1 event với payload giả
 claude --debug -p "review the diff"      rồi grep "Loading hooks from plugin: fe-kit" ~/.claude/debug/latest

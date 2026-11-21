@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.37.0
+
+One reviewer grading one diff once left issues for a second pass: a rename review missed the `is`-prefix returning a truthy string, and a clean-up kept a hand-rolled loop beside the inlined code it sat next to. The fix is fan-out: every diff now gets one reviewer per checklist lens in parallel, the reports merge with the same `file:line` folded into one paragraph, the author fixes once, and one fresh reviewer checks each finding at HEAD.
+
+- New `scripts/review_lenses.py`: six lenses (`hygiene`, `correctness`, `contract`, `structure`, `naming`, `performance`) partition every item of `REVIEW_CHECKLIST.md` and `review-checks.md`, so six reports cover the checklist with no item read twice or missed. `list` prints the lenses for a fan-out, `items <lens>` prints its codes for a task brief.
+- `scripts/review_packages.py merge` now names each finding's source (`Lens:` line, or `Gói N`), folds two reports of the same `file:line` into one paragraph at the stronger level, and recounts `Tóm tắt` from the merged paragraphs instead of summing declared counts.
+- `playbooks/review-diff.md` gains a Fan-out section: ≤10 files → one reviewer per lens; larger diffs keep `review_packages.py split` plus one `--lens contract` reviewer over the whole range; the merge → fix → verify-at-HEAD loop closes once.
+- `rules/review-diff.md`, `skills/fe-kit/SKILL.md`, `agents/reviewer.md` (accepts `--lens`, may run `review_lenses.py`), `references/review-output.md` (`Lens:` line), `extensions/auto-review.ts` (the post-edit note now prescribes the fan-out), and `README.md` carry the same flow. `agents/reviewer.md` drops its `model: opus` pin: the reviewer runs on whatever model the host gives it.
+- Version 1.37.0 in `.devin-plugin/plugin.json`, `.claude-plugin/plugin.json`, `package.json`, and both places in `marketplace.json`.
+
+
+## 1.36.0
+
+The "do not grade a diff you wrote" rule only fired on frontend sessions: a plain `.ts` utility rewrite skipped the fresh-context review, and an agent reading `PostToolUse`/`PreToolUse` on a non-`.tsx` file never saw the review context. `extensions/auto-review.ts` already injected the review note after every edit, so the gap was only in the rule text and the Python gates.
+
+- `rules/review-diff.md`, `skills/fe-kit/playbooks/review-diff.md`, `agents/reviewer.md`, and `skills/fe-kit/SKILL.md` now scope the fresh-context review to any source file, not only frontend.
+- `scripts/fe-gate.py`: `UserPromptSubmit` injects the review context on an authoring prompt (`author_hit`), `PreToolUse` injects it on any `source_hit` write, `PostToolUse` emits the bug-fix handoff on any `source_hit`, and a new `transcript_has_code` keeps the review rule in the compact summary and the `SessionStart` resume context for sessions that only edited non-frontend code.
+- `scripts/devin_gate.py`: same `author_hit`/`source_hit` triggers; `PreToolUse` records `state["edited"]` for non-gated source files so `PostCompaction`/`SessionStart` resume still reminds the reviewer rule.
+- Version 1.36.0 in `.devin-plugin/plugin.json`, `.claude-plugin/plugin.json`, `package.json`, and both places in `marketplace.json`.
+
+
 ## 1.35.0
 
 omp has no hook to spawn a reviewer subagent after an edit the way Claude Code wires one, so the "reviewer runs after each diff" behavior never fired on omp — the skill could only tell the agent to do it, nothing enforced it.

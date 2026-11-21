@@ -86,6 +86,22 @@ def _():
 def _():
     return output_of(prompt_event("xem log server staging")) == ""
 
+@case("inject", "authoring prompt injects the review rule")
+def _():
+    return "Do not grade a diff you wrote" in output_of(prompt_event("implement a helper to sum numbers"))
+
+@case("inject", "a non-frontend source write injects the review rule")
+def _():
+    out = output_of(edit_event(path="util/sum.py", old="a", new="b"))
+    return "Do not grade a diff you wrote" in out
+
+@case("inject", "post-compaction still reminds the review rule after a non-gated edit")
+def _():
+    seq([prompt_event("implement a helper to sum numbers"),
+         edit_event(path="util/sum.py", old="a", new="b")])
+    out = output_of({"hook_event_name": "PostCompaction", "session_id": S[0]})
+    return "Do not grade a diff you wrote" in out
+
 @case("inject", "bug prompt injects rules")
 def _():
     return "Runtime owner" in output_of(prompt_event("tổng hiển thị sai khi có discount"))

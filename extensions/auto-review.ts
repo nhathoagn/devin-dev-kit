@@ -68,7 +68,10 @@ function extractPath(input: unknown): string | undefined {
 
 function reviewInstruction(): string {
   return [
-    `${NOTE_PREFIX} A file was just edited. Before you answer the user, run the fe-kit reviewer on the diff of the changed file(s): spawn a fresh context or the \`fe-kit:reviewer\` agent with the diff range and \`skill://fe-kit/playbooks/review-diff.md\`, then act on its findings.`,
-    "If the edit was a wording/style-only change (no new state, prop, branch, call, or value), you may skip the reviewer but say so in one line.",
+    `${NOTE_PREFIX} A file was just edited. Before you answer the user, run the lens fan-out review on the diff of the changed file(s):`,
+    "1. Get the diff of the changed file(s).",
+    "2. Run `scripts/review_lenses.py list` from the fe-kit plugin folder and spawn one fresh reviewer per lens, in parallel — each task carries the diff range, `skill://fe-kit/playbooks/review-diff.md`, and `--lens <name>`. On omp use a task agent per lens; on Claude Code use `fe-kit:reviewer`; on Devin spawn `fe-kit:reviewer` once per lens.",
+    "3. Merge the reports with `scripts/review_packages.py merge`, fix every merged finding once, then send the fix to one fresh reviewer that checks each finding at HEAD.",
+    "If the edit was a wording/style-only change (no new state, prop, branch, call, or value), you may skip the reviewers but say so in one line.",
   ].join("\n");
 }

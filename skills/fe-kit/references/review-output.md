@@ -58,7 +58,7 @@ Việc chặn đưa lên: 1. Việc nên sửa trong lượt này: 0. Việc có
 
 ## Nguồn và độ phủ
 
-Luôn có ba dòng này, mỗi dòng có giá trị. `scripts/review_check.py` kiểm ba dòng này.
+Luôn có ba dòng này, mỗi dòng có giá trị. `scripts/review_check.py` kiểm ba dòng này. Khi task giao `--lens <name>`, thêm ngay trước ba dòng đó một dòng `Lens: <name>` để merge gắn nguồn vào từng đoạn finding.
 
 Luật đã đọc: mỗi file ở dòng `read:` của `project_config.py`, hoặc `không có luật dự án`.
 Cổng: lệnh và exit code mà task gửi, ví dụ `npm run typecheck exit 0`, hoặc `chưa chạy (task không gửi kết quả)`.
