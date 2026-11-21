@@ -2,11 +2,6 @@
 name: reviewer
 description: Review a frontend git diff in a fresh context against the fe-kit checklist. Use after a frontend edit, before commit or PR. Read-only. Do not use for a screen review of existing UI.
 tools: Read, Grep, Glob, Bash
-allowed-tools:
-  - read
-  - grep
-  - glob
-  - exec
 model: opus
 ---
 
