@@ -47,6 +47,31 @@ LENSES = [
         "title": "Tải và hiệu năng",
         "items": ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "F10"],
     },
+    {
+        "name": "probe",
+        "title": "Input xấu ở mọi boundary (pass 2)",
+        "items": [],
+        "brief": (
+            "For every exported function in the diff, apply {undefined, null, \"\", \" \","
+            " NaN, -1, 0} to each parameter and each field of each object parameter."
+            " Report every case that silently accepts an invalid input, throws where the"
+            " signature promises a typed result, returns a sentinel a caller cannot"
+            " distinguish from a real value, or applies a default the caller never asked for."
+        ),
+    },
+    {
+        "name": "invariant",
+        "title": "Invariant giữa các hàm (pass 2)",
+        "items": [],
+        "brief": (
+            "List every function pair A -> B inside the diff where B reads a value A"
+            " validates, computes, or owns. For each pair, write the invariant in one line"
+            " (A promises X; B depends on X). Report every pair where the promise is"
+            " narrower than the dependency — A checks fewer fields than B throws on,"
+            " a validator that misses a field the consumer dereferences, or a Result/flag"
+            " that does not cover a path the callee still takes."
+        ),
+    },
 ]
 
 def by_name(name):
@@ -70,6 +95,8 @@ def main(argv=None):
     list_cmd.add_argument("--diff", default=None)
     items_cmd = commands.add_parser("items")
     items_cmd.add_argument("lens")
+    brief_cmd = commands.add_parser("brief")
+    brief_cmd.add_argument("lens")
     args = parser.parse_args(argv)
     try:
         if args.command == "list":
@@ -79,6 +106,10 @@ def main(argv=None):
                 print("lens %d: %s (%s) — items %s"
                       % (number, lens["name"], lens["title"], " ".join(lens["items"])))
             print("lenses: %d" % len(LENSES))
+            return 0
+        if args.command == "brief":
+            lens = by_name(args.lens)
+            print(lens.get("brief") or lens["title"])
             return 0
         lens = by_name(args.lens)
         print(",".join(lens["items"]))

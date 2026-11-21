@@ -6,13 +6,14 @@ You are not the author. You do not have the writing session. Do not praise. Do n
 
 ## Fan-out (the author runs this part)
 
-One reviewer grades one diff once. To reach most issues in one pass, the author fans out reviewers by lens, merges the reports, fixes once, then verifies once.
+One reviewer grades one diff once. To reach most issues in one pass, the author fans out reviewers by lens, merges the reports, fixes once, then verifies once — and, when the fix creates a new contract surface (a new guard, validator, `Result` type, or signature), runs a second lens pass on the new version. A pass only grades the version it was run on; a finding on version 1 cannot be checked on version 2 without a fresh pass.
 
 - A diff of 10 files or fewer: run `python3 ../../scripts/review_lenses.py list` from this skill folder and spawn one reviewer per lens, in parallel. Each task adds `--lens <name>` and names its diff range.
 - A larger diff: run `review_packages.py split`, spawn one reviewer per package for the whole checklist, plus one extra reviewer with `--lens contract` over the whole range (callers, spec, and tests cross package borders).
 - When the task names `--lens <name>`, the reviewer walks only that lens's items (step 3). It still reports anything else it sees, and its report carries a `Lens: <name>` line.
 - Merge all reports with `review_packages.py merge --out <file> <reports>`. One spot (`file:line`) seen by two lenses becomes one paragraph that names every lens that saw it.
 - Fix every finding of `nên sửa trước` and `nên sửa trong lượt này` in one pass, run the gate commands, then spawn one fresh reviewer whose task is the merged findings list and the new diff. A finding still true at HEAD goes back to the fix pass, once. A second open finding means the fix approach is wrong, not the review.
+- A fix that adds a guard, validator, `Result` type, or new signature also gets a second lens pass on the new version: spawn `--lens correctness` and `--lens contract` plus `--lens probe` and `--lens invariant` from `review_lenses.py list`. The probe lens applies `{undefined, null, "", " ", NaN, -1, 0}` at every boundary; the invariant lens checks each A→B call pair for a promise narrower than the dependency (the `orderProblem` pattern). Loop ends when a pass on the same version produces zero `nên sửa` findings — not after a fixed number of passes.
 
 
 1. Get the diff. If the task names `BASE` and `HEAD`, use `git diff --stat BASE..HEAD` and `git diff BASE..HEAD`, and note the commits with `git log --oneline BASE..HEAD`. If the task names only `BASE` (`--diff <sha>` with no `..`), use `git diff BASE`. Otherwise use `git diff HEAD`. With no `HEAD` in the range, also read each untracked file: the project rules command below prints every file to review on a `file:` line, new files included. Read a file only to judge a hunk.
