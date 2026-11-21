@@ -57,6 +57,7 @@ plugin-architecture
 ├── extensions/
 │   ├── fe-gate.ts           omp extension (khai báo `omp.extensions` trong package.json): map edit/ast_edit/write/bash sang payload gate (nhận old_string, oldText, oldString, old_str, old, search; edits[]), chặn edit thiếu nhãn qua tool_call, kiểm conflict/rules.sh sau ghi qua tool_result — gọi cùng scripts/fe-gate.sh; ghi verdict cuối (ok/blocked/note/rules) lên status line
 │   ├── auto-review.ts        omp extension: sau mỗi edit/write/ast_edit, append note bắt agent chạy fe-kit reviewer; tên file edit gom qua before_agent_start; reset theo session_start
+│   ├── variable-rename.test.ts  18 case chạy `tsx`: đổi tên biến là rename, đổi copy thì không
 │   └── fe-gate.test.ts      29 case `node --test`, spawn gate thật (Windows: qua `sh`, đường dẫn dấu /)
 ├── rules/                   nội dung bơm vào prompt (hook nạp); frontmatter thêm trigger: always_on cho Devin
 │   ├── fe-implementation.md quy trình edit: quyết định trước, code sau
@@ -174,7 +175,8 @@ Báo cáo: Verdict đứng đầu, mỗi miss là 1 câu, xong rồi dừng.
 
 ```text
 python3 scripts/test_wording.py          85 test lexer/token diff (copy vs code)
-python3 scripts/test_variable_rename.py  đổi tên biến → deny, đổi copy → allow
+python3 scripts/test_variable_rename.py  đổi tên biến → deny, đổi copy → allow (test gate thật)
+npx tsx extensions/variable-rename.test.ts 18 case cùng case, chạy trực tiếp kiểu nested-if.test.ts
 python3 scripts/test_fe_gate.py          223 case hành vi gate (deny/allow, intent, conflict, file type, Bash ghi file, nhãn khai báo, dòng project rules, handoff)
 python3 scripts/test_bash_target.py      18 test Bash → file ghi (sed/perl -i, cp/mv, redirect trong quote)
 python3 scripts/test_handoff.py          13 test gate trước commit (thiếu file, thiếu section, approve, stale)
