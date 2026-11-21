@@ -19,6 +19,7 @@ Pick one playbook. Read that file from this skill directory. On omp, use `skill:
 | Split, move, or restructure existing UI | `playbooks/refactor-ui.md` |
 | Waterfall, bundle, rerender, or list jank | `playbooks/perf-ui.md` |
 | Check, review, clean up, or shorten existing UI | `playbooks/review-ui.md` |
+| Fix or rewrite existing code whose diff then goes through lens review | `playbooks/author-loop.md` |
 
 Before the playbook's first edit, read the project rules. List the files you will create or change (`rules/modules.md`). Run `python3 ../../scripts/project_config.py --root <repo> --mode author --files <those files>` from this skill folder, or the full command the hook context gives. Read each `read:` line. A project rule wins over this skill on a name, a layer, or a pattern. Verify with each `gate:` command. The repo file `.fe-kit/config.yaml` is optional: with no config, the command searches `AGENTS.md`, `CLAUDE.md`, and `rules/` folders. A review playbook does its own project-rules step.
 

@@ -1,0 +1,26 @@
+# Author loop — review, fix, verify, repeat
+
+Use this when the task is to fix or rewrite existing code and the diff will be reviewed by lens fan-out. The loop is the author's side of `playbooks/review-diff.md`; that file is the reviewer's side. Do not skip steps because an earlier pass ran clean — a pass only grades the version it ran on.
+
+## The loop
+
+1. **Rules first.** Before the first edit: `python3 ../../scripts/project_config.py --root <repo> --mode author --files <files>` and read every `read:` line. Declare the gate labels (`Runtime owner:`, `Decision:`; a bug fix adds `Trigger:`/`Expected:`/`Actual:`) in one Bash command — the gate reads the command, not the transcript.
+2. **Edit once.** Keep the change to what the task asked. No bonus refactor inside a fix (`playbooks/fix-bug.md` step 5).
+3. **Verify the edit batch.** After every batch of edits — not at the end of the session — run the narrowest check: the project's type-check and the closest test or smoke script. An edit can break the file mid-change (a dangling `for` header, a half-replaced table); the batch check catches it while the diff is still small.
+4. **Fan out by lens.** The author does not grade their own diff (`rules/review-diff.md`). `scripts/review_lenses.py list` → one fresh-context reviewer per lens, in parallel, each with `--lens <name>` and the canonical report format (`references/review-output.md`, `Lens:` line included) so `review_packages.py merge` can read it. Every reviewer gets: the diff range, the playbook path, the gate results, the `read:` rule files, and the spec_dirs verdict. Untracked files are the whole file as diff.
+5. **Merge, never by hand.** `python3 ../../scripts/review_packages.py merge --out <file> <reports>` — one `file:line` seen by two lenses becomes one paragraph. Hand-merging drops overlaps.
+6. **Fix `nên sửa` findings in one pass.** All of `nên sửa trước` and `nên sửa trong lượt này`. Then repeat step 3.
+7. **Boundary sweep, not spot fixes.** A fix that adds or widens a guard, validator, `Result` type, or signature is a new contract surface — sweep every exported boundary with one shared predicate and one policy per return shape (`Result` → typed error, `void` → early return, predicate → `false`, factory → neutral value). Guards added only where a finding pointed leave the neighboring exports crashing on the same input. Then run the bad-input probe: `{undefined, null, "", " ", NaN, -1, 0}` × every parameter and object field, try/catch each call, classify throw vs silent accept. A `Record<string, …>` lookup keyed by caller input needs a `Map` or `hasOwnProperty` — `obj["toString"]` hits the prototype chain.
+8. **Second lens pass on the new version.** A fix that created a new contract surface gets a fresh pass with `--lens correctness`, `--lens contract`, `--lens probe`, `--lens invariant` — the pass grades the version it runs on, so round-1 findings cannot be checked against round-2 code. Repeat until one pass on the same version produces zero `nên sửa` findings.
+9. **Verify each prior finding at HEAD.** The last pass's reviewer gets the merged findings list and confirms each at `file:line`. A finding still true goes back to the fix pass once; a second open finding means the fix approach is wrong, not the review.
+10. **Commit, then record.** Commit the reviewed code first, then `python3 ../../scripts/review_record.py save --root <repo> --report <file>` and commit `.fe-kit/reviews/` separately. Next review starts from that HEAD. Before `git commit`, `.fe-kit/handoff.md` + the Q&A per `references/handoff.md` unless `.fe-kit/config.yaml` sets `handoff: "off"`.
+
+## Anti-patterns this loop exists to kill
+
+- Writing `// fixed` or a `// Before:` claim without the code actually doing it — graders trace code, not comments.
+- Claiming parity with the old version while the producer/consumer contract changed (a table emits a value the lookup cannot price; an emitter format the parser cannot read).
+- Fixing the idempotency check but not requiring the id — `if (key && has(key))` silently passes empty keys.
+- Merging instead of restoring — `Object.assign` never deletes keys added after the snapshot.
+- Storing the live object where a snapshot was meant (`history.push(state)` after mutation, `getSubmitted()` returning internals).
+- A shared module-level holder (`history`, `current`, one `"draft"` key) leaking across instances — key it per instance (`WeakMap`, per-id keys).
+- A `// Before:` comment that overclaims once the clean version inherits part of the smell.

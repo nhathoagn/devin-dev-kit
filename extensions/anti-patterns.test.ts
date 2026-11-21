@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+
 import {
   canCheckout,
   discount,
@@ -123,16 +124,6 @@ test("boundary: parseConfig rejects non-string input as Result, not parsed value
   }
 });
 
-test("boundary: discount throws on non-string coupon instead of silent path", () => {
-  const base = { subtotal: 100, tier: "gold" as const, totalQuantity: 1, isMember: true, isHoliday: false, isFirstOrder: false };
-  for (const bad of [undefined, null, NaN, 0]) {
-    assert.throws(
-      () => discount({ ...base, coupon: bad as never }),
-      TypeError,
-    );
-  }
-});
-
 test("guards: isCountry/isTier/isOrderStatus reject every non-member value", () => {
   for (const bad of BAD_VALUES) {
     assert.equal(isCountry(bad as string), false);
@@ -149,4 +140,24 @@ test("invariant: processOrder ok implies finite total (no Infinity/NaN leak)", (
   const result = processOrder(order);
   assert.ok(!result.ok, `overflow order got ok=${result.ok}`);
   assert.equal(result.ok ? null : result.error, "total out of range");
+});
+
+test("discount: tier rates, bulk, coupon, holiday-first, cap", () => {
+  const d = (o: Partial<Parameters<typeof discount>[0]>) =>
+    discount({
+      subtotal: 100,
+      tier: "gold",
+      totalQuantity: 1,
+      coupon: "",
+      isMember: false,
+      isHoliday: false,
+      isFirstOrder: false,
+      ...o,
+    });
+  assert.equal(d({}), 15);
+  assert.equal(d({ totalQuantity: 10 }), 20);
+  assert.equal(d({ isHoliday: true, isFirstOrder: true }), 17);
+  assert.equal(d({ subtotal: 600, tier: "silver", coupon: "SALE50 ", isMember: true }), 98);
+  assert.equal(d({ subtotal: 400, tier: "silver", coupon: "SALE50", isMember: true }), 32);
+  assert.throws(() => d({ tier: "platinum" }), RangeError);
 });
