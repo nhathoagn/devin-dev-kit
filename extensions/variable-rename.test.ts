@@ -1,7 +1,11 @@
-// Run: npx tsx extensions/variable-rename.test.ts
-// Variable renames are behavior changes, not wording/style — every call site,
-// prop name, and destructured key could now point at something else.
-// These cases assert the gate denies them; pure copy changes still pass.
+import {
+  gradeOf,
+  gradeSmell,
+  shippingFee,
+  shippingFeeSmell,
+  verdictSmell,
+  withdrawalVerdict,
+} from "./variable-rename";
 
 let failures = 0;
 
@@ -13,52 +17,60 @@ function check(name: string, actual: unknown, expected: unknown) {
   console.log(`${pass ? "PASS" : "FAIL"} ${name}: ${JSON.stringify(actual)} (expected ${JSON.stringify(expected)})`);
 }
 
-// Same token-diff the gate runs: identifiers changed => deny.
-// Import-free reimplementation of wording.wording_only's decision for these cases,
-// kept tiny on purpose — the real gate is tested in scripts/test_wording.py.
-function isRename(before: string, after: string): boolean {
-  const ids = (s: string) =>
-    (s.replace(/'[^']*'|"[^"]*"|`[^`]*`/g, "").match(/\b[A-Za-z_$][A-Za-z0-9_$]*\b/g) ?? []);
-  const a = ids(before);
-  const b = ids(after);
-  if (a.length !== b.length) return false;
-  return a.some((id, i) => id !== b[i]);
+const feeCases: [boolean, boolean, number, number][] = [
+  // remote, express, weightKg -> fee
+  [true, true, 5, 10],
+  [true, true, 10, 10],
+  [true, true, 15, 15],
+  [true, false, 5, 5],
+  [true, false, 10, 5],
+  [true, false, 15, 8],
+  [false, true, 5, 4],
+  [false, true, 10, 4],
+  [false, true, 15, 7],
+  [false, false, 5, 0],
+  [false, false, 10, 0],
+  [false, false, 15, 3],
+];
+for (const [remote, express, weightKg, expected] of feeCases) {
+  const order = { weightKg, express, remote };
+  check(`fee remote=${remote} express=${express} kg=${weightKg}`, shippingFee(order), expected);
+  check(`fee smell parity remote=${remote} express=${express} kg=${weightKg}`, shippingFeeSmell(order), expected);
 }
 
-const renameCases: [string, string, string][] = [
-  ["const rename", "const data = fetchOrders();", "const orders = fetchOrders();"],
-  ["let rename", "let tmp = 0;", "let count = 0;"],
-  ["var rename", "var t = 1;", "var total = 1;"],
-  ["generic name still gated", "const data = 1;", "const info = 1;"],
-  // Param renames
-  ["function param rename", "function get(d) { return d; }", "function get(item) { return item; }"],
-  ["arrow param rename", "const f = (x) => x + 1;", "const f = (n) => n + 1;"],
-  // Pattern renames
-  ["destructured key rename", "const { data } = res;", "const { orders } = res;"],
-  ["for-of variable rename", "for (const d of list) { sum(d); }", "for (const item of list) { sum(item); }"],
-  ["catch binding rename", "try { run(); } catch (e) { log(e); }", "try { run(); } catch (err) { log(err); }"],
-  // Use-site renames
-  ["identifier usage rename", "console.log(data);", "console.log(orders);"],
-  ["member access rename", "const x = res.data;", "const x = res.orders;"],
-  ["jsx prop name rename", "const x = <List data={rows} />;", "const x = <List items={rows} />;"],
-  ["jsx handler value rename", "const x = <B onClick={save} />;", "const x = <B onClick={submit} />;"],
-  ["declaration name rename", "function calc() {}", "function computeTotal() {}"],
-  ["class name rename", "class Data {}", "class OrderRow {}"],
-  // Mixed: rename rides along a copy change — still a rename.
-  ["rename plus copy change", 'const buttonLabel = "Save";', 'const saveLabel = "Store";'],
+const gradeCases: [number, string][] = [
+  [59.9, "F"],
+  [60, "D"],
+  [69.9, "D"],
+  [70, "C"],
+  [79.9, "C"],
+  [80, "B"],
+  [89.9, "B"],
+  [90, "A"],
+  [94.9, "A"],
+  [95, "A+"],
+  [100, "A+"],
+  [150, "A+"],
 ];
-
-for (const [name, before, after] of renameCases) {
-  check(name, isRename(before, after), true);
+for (const [score, expected] of gradeCases) {
+  check(`grade score=${score}`, gradeOf(score), expected);
+  check(`grade smell parity score=${score}`, gradeSmell(score), expected);
 }
 
-const copyCases: [string, string, string][] = [
-  ["copy named const is copy", "const buttonLabel = 'Save';", "const buttonLabel = 'Store';"],
-  ["copy call is copy", "toast.success('Saved');", "toast.success('Done');"],
+const base = { balance: 100, amount: 50, dailyLimit: 1000, frozen: false };
+const withdrawalCases: [typeof base, string][] = [
+  [base, "OK"],
+  [{ ...base, frozen: true, amount: -1 }, "ACCOUNT_FROZEN"],
+  [{ ...base, amount: 0, dailyLimit: 40 }, "INVALID_AMOUNT"],
+  [{ ...base, amount: 150, dailyLimit: 40 }, "OVER_DAILY_LIMIT"],
+  [{ ...base, amount: 150 }, "INSUFFICIENT_BALANCE"],
+  [{ ...base, amount: 40, dailyLimit: 40 }, "OK"],
+  [{ ...base, amount: 100 }, "OK"],
 ];
-
-for (const [name, before, after] of copyCases) {
-  check(name, isRename(before, after), false);
+for (const [check_, expected] of withdrawalCases) {
+  const name = JSON.stringify(check_);
+  check(`withdrawal ${name}`, withdrawalVerdict(check_), expected);
+  check(`withdrawal smell parity ${name}`, verdictSmell(check_.balance, check_.amount, check_.dailyLimit, check_.frozen), expected);
 }
 
 console.log(failures === 0 ? "\nAll checks passed" : `\n${failures} check(s) FAILED`);
