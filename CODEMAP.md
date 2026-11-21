@@ -42,6 +42,7 @@ plugin-architecture
 │   ├── review_packages.py   split: diff trên 10 file → gói tối đa 15 file, mỗi gói một reviewer; merge: gộp report các gói (verdict nặng nhất, cộng số lỗi)
 │   ├── review_record.py     save: lưu report + sha vào .fe-kit/reviews/<branch>.md; last: in sha và lỗi cũ cho lần review sau
 │   ├── test_wording.py      85 test lexer/token diff
+│   ├── test_variable_rename.py  18 test: đổi tên biến là thay đổi hành vi, gate phải chặn
 │   ├── test_fe_gate.py      223 case cho hành vi fe-gate.py
 │   ├── test_bash_target.py  18 test: sed/perl -i, cp/mv, redirect trong quote, script test không bị gate
 │   ├── test_handoff.py      13 test: thiếu/thiếu section/chưa approve → block; sửa sau approve → stale; `handoff: off` tắt gate
@@ -173,6 +174,7 @@ Báo cáo: Verdict đứng đầu, mỗi miss là 1 câu, xong rồi dừng.
 
 ```text
 python3 scripts/test_wording.py          85 test lexer/token diff (copy vs code)
+python3 scripts/test_variable_rename.py  đổi tên biến → deny, đổi copy → allow
 python3 scripts/test_fe_gate.py          223 case hành vi gate (deny/allow, intent, conflict, file type, Bash ghi file, nhãn khai báo, dòng project rules, handoff)
 python3 scripts/test_bash_target.py      18 test Bash → file ghi (sed/perl -i, cp/mv, redirect trong quote)
 python3 scripts/test_handoff.py          13 test gate trước commit (thiếu file, thiếu section, approve, stale)
