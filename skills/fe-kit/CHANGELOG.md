@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.34.0
+
+A silent depth choice on an ambiguous "improve" request wasted rounds: a nested-if file went flatten → over-corrected loop → revert → find+table because the option set was never shown. The user had to name the depth ("still too much if") before the right level appeared.
+
+- New `skills/refactor-depth-options/SKILL.md`: when an improve/refactor/clean-up request omits depth, enumerate the ladder — keep shape, change pattern (table/rule list, `find` + `??`), restructure — with a one-line tradeoff each, recommend one with a reason tied to the code's shape, then ask or proceed while naming the alternatives not taken. Skip conditions: a single viable level or a request that already names the depth. Vietnamese triggers included.
+- `README.md` gains the "Độ sâu refactor" section, a structure line, and a Đọc tiếp row; `CODEMAP.md` lists the new skill folder.
+- Version 1.34.0 in `.claude-plugin/plugin.json`, `package.json`, and both places in `marketplace.json`.
+
 ## 1.33.0
 
 The Fowler catalog covers intra-class moves, but a frontend refactor hits moves the catalog cannot name: a prop drilled through two levels, an effect that exists only to sync state with state, a serial `await` pair that is not a real dependency, a `useEffect` fetch reimplemented per screen. Each was fixed ad hoc because no file named the move or its guard.

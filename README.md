@@ -127,6 +127,15 @@ Luật cứng: mọi case phải chạy thật trên UI, không kết luận the
 kèm `Theo code (chưa chạy)`. Sinh file bằng `skills/ut-report/scripts/build_report.py`
 (cần `pyyaml`, `openpyxl`). Tính năng mới không có hệ cũ: xem §0.5 trong `SKILL.md`.
 
+## Độ sâu refactor
+
+Skill `refactor-depth-options`. Trigger khi được bảo "improve", "refactor", "tối ưu",
+"sửa cho gọn" mà không nói sâu cỡ nào. Trước khi sửa, skill bắt liệt kê các mức khả
+thi — giữ shape (bỏ nesting/đổi tên) → đổi pattern (bảng lookup, `find` + `??`, rule
+list) → restructure (kiểu mới, đổi signature) — kèm trade-off một dòng mỗi mức,
+recommend một mức, rồi mới sửa hoặc hỏi khi các mức khác nhau về cách maintain.
+Request đã chỉ rõ depth ("just flatten", "giữ cấu trúc") thì không bắt liệt kê.
+
 ---
 
 ## Sáu rule luôn bật
@@ -262,7 +271,7 @@ extensions/fe-gate.ts    adapter omp + test
 skills/fe-kit/           SKILL.md, 6 playbook, references, evals
 skills/ui-image-check/   so ảnh với code
 skills/ut-report/        báo cáo UT + build_report.py
-rules/                   5 rule always-on
+skills/refactor-depth-options/  liệt kê độ sâu refactor trước khi sửa
 agents/reviewer.md       reviewer đọc diff
 package.json             metadata + omp.extensions
 README.md                trang này
@@ -276,6 +285,7 @@ CODEMAP.md               bản đồ code: module nào gọi module nào
 | [`skills/fe-kit/SKILL.md`](skills/fe-kit/SKILL.md) | Workflow, 6 field, hard rule |
 | [`skills/fe-kit/playbooks/`](skills/fe-kit/playbooks/) | Từng loại việc một file |
 | [`skills/fe-kit/references/`](skills/fe-kit/references/) | Ownership, reuse, performance, audit, checklist F1–F23 |
+| [`skills/refactor-depth-options/SKILL.md`](skills/refactor-depth-options/SKILL.md) | Ladder độ sâu refactor + khi nào phải hỏi |
 | [`rules/`](rules/) | 5 rule luôn bật, kèm ví dụ |
 | [`CODEMAP.md`](CODEMAP.md) | Bản đồ kiến trúc plugin, ai gọi ai |
 | [`skills/fe-kit/CHANGELOG.md`](skills/fe-kit/CHANGELOG.md) | Vì sao mỗi rule tồn tại — kèm sự cố thật |

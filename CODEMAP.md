@@ -59,8 +59,10 @@ plugin-architecture
 │   ├── ut-report/
 │   │   ├── SKILL.md         xuất báo cáo UT 1 màn hình ra .xlsx
 │   │   └── scripts/build_report.py  YAML case → xlsx (cần pyyaml, openpyxl)
-│   └── ui-image-check/
-│       └── SKILL.md         so sánh ảnh mockup với code, không sửa code
+│   ├── ui-image-check/
+│   │   └── SKILL.md         so sánh ảnh mockup với code, không sửa code
+│   └── refactor-depth-options/
+│       └── SKILL.md         request "improve" không nói độ sâu → liệt kê ladder giữ shape / đổi pattern / restructure + trade-off trước khi sửa
 ├── README.md                cho người dùng: tính năng, review, cài, yêu cầu, cấu trúc
 └── package.json             metadata: tên, version, license + `omp.extensions` khai báo extension cho omp
 ```
