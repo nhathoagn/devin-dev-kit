@@ -28,6 +28,7 @@ Walk every item. The reader report does not print the ID, `FAIL`, or `PASS`. Wri
 | F22 | a second job written into an edited file | new logic with its own responsibility sits inside a file that already had another; or a folder is entered through a second entry, or a file outside the folder imports a file inside it other than the entry. Rule is `rules/modules.md`. A file split only because it is long, or split while fixing a bug, also fails | no file holds a new job and no new folder: PASS |
 | F23 | a component declared inside another component's body | the inner component is a new type on each render, so its state and its input focus reset each time the parent renders | no component declared inside another: N/A |
 | F24 | a hand-written loop that is one transformation | a `for`/`forEach` written by hand does one transform that `filter`, `map`, `reduce`, `find`, or `some`/`every` states more clearly, and the pipeline is shorter and clearer. Early exit, several interleaved steps, or a body that mutates two things stays a loop: N/A | no loop: N/A |
+| F25 | a new or changed table or list | the container forces a height (fixed `height`/`min-height`, `overflow` scroll) so that few rows still show a scrollbar or leave a dead band below the rows | no table or list in the diff: N/A |
 
 Wrong: a promo banner rendered inside `Checkout.tsx`, always on.
 

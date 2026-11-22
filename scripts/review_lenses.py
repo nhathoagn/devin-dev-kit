@@ -23,7 +23,7 @@ LENSES = [
     {
         "name": "correctness",
         "title": "Đúng biên và luồng",
-        "items": ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "F9", "F12", "F13", "F16", "F19"],
+        "items": ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "F9", "F12", "F13", "F16", "F19", "F25"],
     },
     {
         "name": "contract",

@@ -64,6 +64,7 @@ Write the states of the screen or action before you judge it, for example `idle 
 - A search form: pressing Enter does the same as the search button.
 - A late reply: a reply that arrives after the user left or started again. Is it dropped?
 - Reload, back, forward, and a deep link: does each one show the same state? Does the URL hold what must survive a reload?
+- A table or list: name which record-count states the screen has been seen in — zero records (empty state renders, not a blank gap), one record, a few records, and more than the viewport. A table with fewer rows than its height that still shows a scrollbar, or leaves a dead band below it, is a bug.
 - Unmount: timers, polling, and subscriptions stop.
 - Long work: who ends a run that hangs, the client or the server? A client timeout is longer than the server limit, so the client does not give up on work the server still does.
 - Polling stops when the run ends, when a poll fails, and when the screen unmounts.

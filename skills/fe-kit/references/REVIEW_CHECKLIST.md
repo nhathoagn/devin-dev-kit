@@ -92,6 +92,7 @@ Bản người đọc là `references/review-output.md`. Không đưa mã checkl
 - [ ] **T8** Test flaky UI. FAIL nếu race hoặc animation không được xử lý. Không có UI test thì N/A.
 - [ ] **T9** Test có đỏ khi behavior hỏng không. FAIL nếu test vẫn xanh khi code hỏng. Không có test thì N/A.
 - [ ] **T10** Test bị xóa hoặc skip. FAIL nếu xóa hoặc skip để cho xanh, không có lý do. Không xóa test thì PASS.
+- [ ] **T11** Test của list/table có đủ mức số bản ghi không. FAIL nếu diff thêm/sửa test cho màn có list/table mà chỉ chạy một mức — bắt buộc đủ: 0 record (empty state), 1 record, ít record, nhiều record vượt vùng hiển thị. Trùng U17; đếm 1 lần. Diff không đụng test của list/table thì N/A.
 - [ ] **TY1** Test type có giữ invariant không. FAIL nếu `any` hoặc cast rộng khi repo cấm. Không có type trong diff thì N/A.
 - [ ] **TY2** Test schema khớp implementation. FAIL nếu DTO hoặc Zod lệch code. Không có schema thì N/A.
 - [ ] **TY3** Test breaking change. FAIL nếu gãy caller mà không có version hoặc migration. Không gãy contract thì N/A.

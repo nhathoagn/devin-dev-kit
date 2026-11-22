@@ -1,6 +1,6 @@
 # test-checklist.md
 
-Checklist theo *Unit Testing: Principles, Practices, and Patterns* (Vladimir Khorikov). Mỗi mục trả **PASS** / **FAIL** / **N/A**. 16 items, U1–U16.
+Checklist theo *Unit Testing: Principles, Practices, and Patterns* (Vladimir Khorikov) và *The Art of Unit Testing* (Roy Osherove). Mỗi mục trả **PASS** / **FAIL** / **N/A**. 17 items, U1–U17.
 
 Bốn checklist trước chấm **production code**; file này chấm **test code**. `REVIEW_CHECKLIST.md` nhóm T (T1–T10) chấm test *có tồn tại không* và các lỗi cơ bản (deterministic, skip, xanh-giả) — item nào trùng ghi ngay ở mục đó, đếm một lần.
 
@@ -39,6 +39,7 @@ Finding viết theo cấu trúc `item → nguyên tắc → vì sao`:
 - [ ] **U14 Không mock repository** Test mock tầng data. FAIL nếu mock repository/ORM để test DB interaction — đây là unmanaged dependency, phải integration test chạy DB thật; mock repo chỉ che được lỗi SQL/mapping đến khi lên prod. Trùng U5 tại điểm repo là interface in-process — ghi rõ ngoại lệ này trong finding.
 - [ ] **U15 Test data độc lập** Test isolation của fixture. FAIL nếu test DB dựa vào execution order, seed data ngoài test, hoặc fixture bẩn của test trước — mỗi test tự arrange data nó cần, chạy sequential không parallel. Trùng T4/T7; đếm 1 lần.
 - [ ] **U16 Không test vì con số** Test test có assert gì thật không. FAIL nếu test thêm vào chỉ để đẩy coverage: snapshot rỗng, assert tồn tại (`toBeTruthy` lên mọi thứ), expect không gắn với behavior nào. Coverage là negative indicator — thấp nghĩa thiếu test, cao không nghĩa test tốt. Trùng T3/T9; đếm 1 lần.
+- [ ] **U17 Đủ trạng thái theo số bản ghi** Test test của list/table có đi hết các mức dữ liệu không. FAIL nếu màn có list/table mà test chỉ chạy một mức — bắt buộc đủ: **0 record** (empty state), **1 record**, **ít record** (vài dòng), **nhiều record** (vượt vùng hiển thị, có scroll/phân trang). Mỗi mức một test riêng; một test duyệt nhiều mức bằng loop là U4 FAIL. Không có list/table thì N/A.
 
 ---
 
@@ -56,4 +57,4 @@ Finding viết theo cấu trúc `item → nguyên tắc → vì sao`:
 - File này chấm **chất lượng test**, không chấm test có tồn tại hay đủ coverage — đó là `REVIEW_CHECKLIST.md` T1/T9.
 - Không chấm correctness của production code — test PASS hết mà prod sai là chuyện nhóm C.
 - Severity tối đa minor; linter đã bắt được thì skip; project rule cho phép thì rule thắng.
-- Nguyên tắc process của sách (test-first vs code-first, mutation testing, coverage target) không chấm được bằng diff — không có item tương ứng.
+- Nguyên tắc process (mutation testing, coverage target) không chấm được bằng diff — không có item tương ứng. Test trước code sau (TDD) là workflow của người viết; khi người dùng yêu cầu test-first, chạy loop `tdd` theo `references/external.md` — diff không chứng minh được test có được viết trước không.

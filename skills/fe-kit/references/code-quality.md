@@ -1,6 +1,6 @@
 # Code Quality
 
-Make the code readable to the next developer without a walkthrough. Each rule below came from a review where the first version was rejected.
+Make the code readable to the next developer without a walkthrough. The goal is lower complexity so the code states the spec by itself — not the smallest line count and not cleverness. A shortening or optimization that makes the code harder to read or maintain is a finding, not a cure. Each rule below came from a review where the first version was rejected.
 
 Project rules win. When the repo has its own conventions file, follow it and treat this file as the fallback.
 
