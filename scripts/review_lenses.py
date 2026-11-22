@@ -23,7 +23,7 @@ LENSES = [
     {
         "name": "correctness",
         "title": "Đúng biên và luồng",
-        "items": ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "F9", "F12", "F13", "F16", "F19"],
+        "items": ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "F9", "F12", "F13", "F16", "F19", "F25"],
     },
     {
         "name": "contract",
@@ -34,7 +34,7 @@ LENSES = [
         "name": "structure",
         "title": "Kiến trúc và dùng lại",
         "items": ["D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9",
-                  "F2", "F3", "F4", "F5", "F6", "F7", "F14", "F22", "F23"],
+                  "F2", "F3", "F4", "F5", "F6", "F7", "F14", "F22", "F23", "F24"],
     },
     {
         "name": "naming",

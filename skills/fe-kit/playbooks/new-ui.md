@@ -10,4 +10,4 @@ Use this when the task adds a component, page, form, or hook.
 6. Read `references/feature-isolation.md` when the new UI adds behavior to an existing screen, feature, or shared component. Fill its table before you write code. Otherwise (a brand-new standalone screen) write `n/a` for Feature Isolation and say why; guarantee 3 (separation) still applies.
 7. Read `references/external.md`. For a match, read the installed skill file, or fetch it per that file. If none match, write `n/a` under Departures / Notes and name the skip.
 
-Edit gate: declare `Runtime owner:` and `Decision:` before the first `.tsx`, `.jsx`, `.vue`, or `.svelte` edit, as `rules/fe-implementation.md` says.
+Edit gate: declare `Runtime owner:` and `Decision:` before the first edit of a source file the gate covers, as `rules/fe-implementation.md` says — not only `.tsx`; the gate also covers `.ts`, `.jsx`, `.js`, `.mjs`, `.cjs`, `.vue`, `.svelte`, `.astro`, `.mdx`, and the other source languages.

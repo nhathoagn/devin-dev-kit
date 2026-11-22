@@ -9,10 +9,10 @@ import os
 import re
 import shlex
 
-BASH_EXT = r"\.(?:tsx|jsx|js|mjs|cjs|vue|svelte|astro|mdx)\b"
+BASH_EXT = r"\.(?:tsx|jsx|js|ts|mjs|cjs|vue|svelte|astro|mdx|py|go|rs|java|kt|kts|rb|php|cs|swift)\b"
 FRONTEND_RE = re.compile(BASH_EXT + r"$", re.I)
 # A writer that builds the path in a variable names only the extension, as in endsWith('.tsx') or '*.tsx'.
-BASH_EXT_MENTION_RE = re.compile(r"\.(tsx|jsx|vue|svelte|astro|mdx)\b", re.I)
+BASH_EXT_MENTION_RE = re.compile(r"\.(tsx|jsx|js|ts|mjs|cjs|vue|svelte|astro|mdx|py|go|rs|java|kt|kts|rb|php|cs|swift)\b", re.I)
 TEMP_PATH_RE = re.compile(r"(?:^|[\\/])(?:tmp|temp|scratchpad)(?:[\\/]|$)", re.I)
 BASH_ASSIGN_RE = re.compile(r"(?:^|[;&|\n]\s*|\s)([A-Za-z_]\w*)=(?:\"([^\"]*)\"|'([^']*)'|([^\s;&|]+))")
 BASH_SCRIPT_RUN_RE = re.compile(

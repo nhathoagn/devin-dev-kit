@@ -202,7 +202,7 @@ source_hit = re.search(
     path,
     re.I,
 )
-GATED_EXT_RE = re.compile(r"\.(tsx|jsx|js|mjs|cjs|vue|svelte|astro|mdx)$", re.I)
+GATED_EXT_RE = re.compile(r"\.(tsx|jsx|js|ts|mjs|cjs|vue|svelte|astro|mdx|py|go|rs|java|kt|kts|rb|php|cs|swift)$", re.I)
 
 DENY_REASON = "Only a behaviorless wording or style change is exempt."
 DENY_BUG_REASON = "A bug fix also needs Trigger:, Expected:, and Actual:, each with a value, from playbooks/fix-bug.md."

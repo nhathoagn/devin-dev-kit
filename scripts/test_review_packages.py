@@ -87,6 +87,7 @@ def merge_cases():
         got = "package 1" in str(exc)
     check("package without verdict is an error", got, True)
 
+
     root = os.path.join(TMP, "repo")
     for path in ("src/a/a.tsx", "src/b/b.tsx"):
         os.makedirs(os.path.dirname(os.path.join(root, path)), exist_ok=True)
@@ -96,6 +97,18 @@ def merge_cases():
     two = report("Đưa được.", "", (0, 0, 0), "không có luật dự án", "`src/b/` ✔")
     errors, _ = review_check.check(root, review_packages.merge([one, two]), ["src/a/a.tsx", "src/b/b.tsx"])
     check("merged report passes review_check", errors, [])
+    with open(os.path.join(root, "src/a/helpers.ts"), "w", encoding="utf-8") as handle:
+        handle.write("x\n" * 200)
+    short = report("Sửa rồi hãy đưa.", "`helpers.ts:3` lỗi A. Nên sửa trong lượt này.", (0, 1, 0), "không có luật dự án", "`src/a/` ✔")
+    full = report("Sửa rồi hãy đưa.", "`src/a/helpers.ts:3` cũng lỗi này. Có thể để sau.", (0, 0, 1), "không có luật dự án", "`src/a/` ✔")
+    deduped = review_packages.merge([short, full], root, ["src/a/helpers.ts"])
+    check("a basename cite dedupes with the repo-relative cite",
+          (deduped.count("(Góc nhìn:"), "(Góc nhìn: Gói 1, Gói 2)" in deduped, "cũng lỗi này" in deduped),
+          (1, True, True))
+    check("basename dedupe keeps one finding", "Việc nên sửa trong lượt này: 1." in deduped, True)
+    undeduped = review_packages.merge([short, full])
+    check("no root: a basename cite stays a separate finding", undeduped.count("(Góc nhìn:"), 2)
+
 
 
 def cli_cases():
@@ -112,6 +125,22 @@ def cli_cases():
     result = subprocess.run([sys.executable, "-I", script, "split", "--root", TMP, "--files"] + ["src/a/%d.tsx" % n for n in range(12)],
                             capture_output=True, text=True, encoding="utf-8")
     check("CLI split prints packages", (result.returncode, "packages: 1, files: 12" in result.stdout), (0, True))
+    lensed = report("Đưa được.", "", (0, 0, 0), "không có luật dự án", "`src/a/` ✔").replace(
+        "Luật đã đọc:", "Lens: hygiene\nLuật đã đọc:")
+    lens_path = os.path.join(TMP, "lens.md")
+    with open(lens_path, "w", encoding="utf-8") as handle:
+        handle.write(lensed)
+    result = subprocess.run([sys.executable, "-I", script, "merge", "--lens", "hygiene,correctness",
+                             "--out", out, lens_path], capture_output=True, text=True, encoding="utf-8")
+    check("merge warns when a lens report is missing",
+          (result.returncode, "no report from lens correctness" in result.stderr), (0, True))
+    result = subprocess.run([sys.executable, "-I", script, "merge", "--lens", "hygiene",
+                             "--out", out, lens_path], capture_output=True, text=True, encoding="utf-8")
+    check("merge quiet when every lens reported", result.stderr, "")
+    result = subprocess.run([sys.executable, "-I", script, "merge", "--lens", "hygiene",
+                             "--out", out] + paths, capture_output=True, text=True, encoding="utf-8")
+    check("merge warns when no report carries a Lens line",
+          "no report from lens hygiene" in result.stderr, True)
 
 
 if __name__ == "__main__":

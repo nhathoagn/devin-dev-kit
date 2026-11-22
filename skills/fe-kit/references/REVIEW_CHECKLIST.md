@@ -55,7 +55,7 @@ Bản người đọc là `references/review-output.md`. Không đưa mã checkl
 - [ ] **D8** Test chỗ giữ thứ hai. FAIL nếu thêm state, prop, hoặc biến cho giá trị đã có chỗ giữ, hoặc không nêu chỗ đã kiểm và literal hay behavior đã search. Rule là `rules/reuse-duplication.md`. Không thêm thì PASS. Không phải diff thì N/A.
 - [ ] **D9** Test việc thứ hai trong một file. FAIL nếu diff thêm logic có trách nhiệm riêng vào file đã có việc khác, hoặc file ngoài thư mục import file bên trong không phải file entry, hoặc tách file chỉ vì dài, hoặc tách file trong lúc sửa bug. Rule là `rules/modules.md`. Không có file mới và không thêm việc thì PASS. Không phải diff thì N/A.
 - [ ] **N1** Test tên trong diff. FAIL nếu tên không nói việc nó giữ. Không có tên mới thì N/A.
-- [ ] **N2** Test hàm có làm một việc không. FAIL nếu nesting sâu hơn 4 mà không giải thích được. Một việc thì PASS.
+- [ ] **N2** Test hàm có làm một việc không. FAIL nếu nesting sâu hơn 2 mà nhánh đặc biệt viết được thành guard clause/early return, hoặc sâu hơn 4 bất kể. Một việc thì PASS.
 - [ ] **N3** Test magic number hoặc magic string. FAIL nếu giá trị cứng lẽ ra là hằng. UI copy không tính. Secret tính ở S5.
 - [ ] **N4** Test comment theo `rules/comments.md`. FAIL nếu comment cũ sai sau diff; tắt lint/TypeScript (`eslint-disable`, `@ts-ignore`, `@ts-expect-error`) cho rule bắt bug, correctness, hoặc safety; comment giải thích workaround hay hành vi bất ngờ của chính code mình (nên sửa gốc rồi xóa); comment ràng buộc (`IMPORTANT`, `do not remove`, `do not change wording`, `talk to X`) về code mình chưa được encode bằng type, runtime check, test, hoặc lint; hoặc comment lặp lại code, banner, lời biện minh dài. Chỉ giữ comment có bằng chứng thuộc danh sách ngoại lệ (license, ràng buộc hệ ngoài còn sống không sửa được, `prettier-ignore` hoặc lint thuần style, doc public API, link issue/RFC). TODO không có owner theo DOC4. Không có comment thì PASS.
 - [ ] **N5** Test block viết hai lần. FAIL nếu hai block gộp được mà không mất nghĩa. Không có bản sao thì PASS.
@@ -92,6 +92,7 @@ Bản người đọc là `references/review-output.md`. Không đưa mã checkl
 - [ ] **T8** Test flaky UI. FAIL nếu race hoặc animation không được xử lý. Không có UI test thì N/A.
 - [ ] **T9** Test có đỏ khi behavior hỏng không. FAIL nếu test vẫn xanh khi code hỏng. Không có test thì N/A.
 - [ ] **T10** Test bị xóa hoặc skip. FAIL nếu xóa hoặc skip để cho xanh, không có lý do. Không xóa test thì PASS.
+- [ ] **T11** Test của list/table có đủ mức số bản ghi không. FAIL nếu diff thêm/sửa test cho màn có list/table mà chỉ chạy một mức — bắt buộc đủ: 0 record (empty state), 1 record, ít record, nhiều record vượt vùng hiển thị. Trùng U17; đếm 1 lần. Diff không đụng test của list/table thì N/A.
 - [ ] **TY1** Test type có giữ invariant không. FAIL nếu `any` hoặc cast rộng khi repo cấm. Không có type trong diff thì N/A.
 - [ ] **TY2** Test schema khớp implementation. FAIL nếu DTO hoặc Zod lệch code. Không có schema thì N/A.
 - [ ] **TY3** Test breaking change. FAIL nếu gãy caller mà không có version hoặc migration. Không gãy contract thì N/A.

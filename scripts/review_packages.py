@@ -68,10 +68,17 @@ def _blocks(section_lines):
     text = _join(section_lines)
     return [block.strip() for block in re.split(r"\n\s*\n", text) if block.strip()] if text else []
 
-def _ref_key(block):
+def _ref_key(block, root=None, candidates=()):
     # The first `path:line` citation identifies the spot a finding is about.
     match = review_check.REF_RE.search(block)
-    return (match.group(1), match.group(2)) if match else None
+    if not match:
+        return None
+    path, line = match.group(1), match.group(2)
+    if root is not None:
+        resolved = review_check._resolve_ref(root, path, candidates)
+        if resolved:
+            path = resolved
+    return (path, line)
 
 def _level(block):
     lowered = block.lower()
@@ -80,7 +87,7 @@ def _level(block):
             return index
     return len(review_check.LEVELS)
 
-def _merge_findings(parsed, texts):
+def _merge_findings(parsed, texts, root=None, candidates=()):
     """One spot, one paragraph: a finding two lenses see on the same `path:line`
     becomes the stronger block plus the weaker text with its level sentence removed."""
     merged = []
@@ -90,7 +97,7 @@ def _merge_findings(parsed, texts):
         for block in _blocks(parts.get("Việc cần sửa", [])):
             if _ref_key(block) is None and _level(block) >= len(review_check.LEVELS):
                 continue
-            key = _ref_key(block)
+            key = _ref_key(block, root, candidates)
             if key is not None and key in seen:
                 index = seen[key]
                 level, kept, lenses, extra = merged[index]
@@ -118,7 +125,7 @@ def _merge_findings(parsed, texts):
     return "\n\n".join(out), counts
 
 
-def merge(reports):
+def merge(reports, root=None, candidates=()):
     """Return one report from the package reports, in package order."""
     parsed = [review_check.sections(text) for text in reports]
     verdicts = []
@@ -136,7 +143,7 @@ def merge(reports):
     worst = min(verdicts, key=review_check.VERDICTS.index)
 
     out = ["# Kết quả review", "", "## Kết luận", "", " ".join([worst + "."] + conclusions), ""]
-    findings, counts = _merge_findings(parsed, reports)
+    findings, counts = _merge_findings(parsed, reports, root, candidates)
     if findings:
         out += ["## Việc cần sửa", "", findings, ""]
     left = [_join(parts.get("Để yên", [])) for parts in parsed]
@@ -181,6 +188,10 @@ def main(argv=None):
     split_cmd.add_argument("--max", type=int, default=DEFAULT_MAX)
     split_cmd.add_argument("--json", action="store_true")
     merge_cmd = commands.add_parser("merge")
+    merge_cmd.add_argument("--root", default=".")
+    project_config.add_source_arguments(merge_cmd)
+    merge_cmd.add_argument("--lens",
+                           help="comma-separated lens names from the fan-out; warns when a report is missing")
     merge_cmd.add_argument("--out", required=True)
     merge_cmd.add_argument("reports", nargs="+")
     args = parser.parse_args(argv)
@@ -202,7 +213,20 @@ def main(argv=None):
         for path in args.reports:
             with open(path, encoding="utf-8") as handle:
                 texts.append(handle.read())
-        merged = merge(texts)
+        root = os.path.abspath(args.root)
+        # Every path citation in any report is a resolution candidate, so a bare
+        # basename in one report dedupes with the repo-relative path in another.
+        candidates = sorted(set(match.group(1) for text in texts for match in review_check.REF_RE.finditer(text)))
+        if args.files or args.diff or args.staged:
+            scope = project_config.resolve(root, project_config.files_from_args(root, args), "review")
+            candidates = sorted(set(candidates) | set(scope["files"]) | {item["path"] for item in scope["read"]})
+        merged = merge(texts, root, candidates)
+        if args.lens:
+            named = {review_check.label_value(text, "Lens:") for text in texts}
+            expected = [name.strip() for name in args.lens.split(",") if name.strip()]
+            missing = [name for name in expected if name not in named]
+            if missing:
+                sys.stderr.write("warning: no report from lens %s\n" % ", ".join(missing))
         with open(args.out, "w", encoding="utf-8", newline="\n") as handle:
             handle.write(merged)
         print("merged %d reports into %s" % (len(texts), args.out))

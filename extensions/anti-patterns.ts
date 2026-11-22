@@ -102,52 +102,11 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   "-1": "cancel",
 };
 
-export function shippingFee(order: Order): number {
-  if (order === null || typeof order !== "object" || order.customer === null || typeof order.customer !== "object") {
-    throw new TypeError("shippingFee: order and order.customer must be objects");
+function requireTier(tier: string): Tier {
+  if (!isTier(tier)) {
+    throw new RangeError(`unknown tier: ${tier}`);
   }
-  const { country } = order.customer;
-  if (!isCountry(country)) {
-    throw new RangeError(`unknown country: ${country}`);
-  }
-  if (!Number.isFinite(order.weightKg) || order.weightKg < 0) {
-    throw new RangeError(`invalid weight: ${order.weightKg}`);
-  }
-  const key: ShippingKey = `${country}:${order.express === true ? "express" : "standard"}:${order.weightKg > HEAVY_WEIGHT_KG ? "heavy" : "light"}`;
-  return SHIPPING_FEES[key];
-}
-
-export function discount(input: DiscountInput): number {
-  if (input === null || typeof input !== "object") {
-    throw new TypeError("discount: input must be an object");
-  }
-  const tier = requireTier(input.tier);
-  const { subtotal, totalQuantity, coupon, isMember, isHoliday, isFirstOrder } = input;
-  if (!Number.isFinite(subtotal) || subtotal < 0) {
-    throw new RangeError(`invalid subtotal: ${subtotal}`);
-  }
-  if (typeof coupon !== "string") {
-    throw new TypeError(`invalid coupon: ${coupon}`);
-  }
-  const rate =
-    TIER_DISCOUNT_RATES[tier] +
-    (Number.isFinite(totalQuantity) && totalQuantity >= BULK_QUANTITY ? BULK_DISCOUNT_RATE : 0) +
-    (isHoliday === true && isFirstOrder === true ? FIRST_ORDER_HOLIDAY_RATE : 0);
-  const fixed =
-    coupon.trim() === SALE50_COUPON && isMember === true && subtotal >= SALE50_MIN_SUBTOTAL ? SALE50_AMOUNT : 0;
-  return Math.min(subtotal * rate + fixed, subtotal * MAX_DISCOUNT_RATIO);
-}
-
-export function calcSubtotal(items: OrderItem[]): number {
-  if (!Array.isArray(items)) {
-    throw new TypeError("calcSubtotal: items must be an array");
-  }
-  return items.reduce((sum, item) => {
-    if (item === null || typeof item !== "object" || !Number.isFinite(item.price) || !Number.isFinite(item.qty)) {
-      throw new RangeError("calcSubtotal: item needs finite price and qty");
-    }
-    return sum + item.price * item.qty;
-  }, 0);
+  return tier;
 }
 
 export function orderStatusLabel(code: string): string {
@@ -157,20 +116,18 @@ export function orderStatusLabel(code: string): string {
   return ORDER_STATUS_LABELS[code];
 }
 
+/**
+ * The single validation oracle for this module. If it returns null, every
+ * function below — shippingFee, discount, calcSubtotal, orderTotal, formatBill,
+ * emailCustomers, orderNotification — is safe to call without its own guard.
+ */
 export function orderProblem(order: Order): string | null {
-  if (order === null || typeof order !== "object") {
-    return "invalid order";
-  }
-  if (typeof order.id !== "string" || !order.id.trim()) {
-    return "missing order id";
-  }
+  if (order === null || typeof order !== "object") return "invalid order";
+  if (typeof order.id !== "string" || !order.id.trim()) return "missing order id";
+
   const customer = order.customer;
-  if (customer === null || typeof customer !== "object") {
-    return "missing customer";
-  }
-  if (typeof customer.name !== "string" || !customer.name.trim()) {
-    return "missing customer name";
-  }
+  if (customer === null || typeof customer !== "object") return "missing customer";
+  if (typeof customer.name !== "string" || !customer.name.trim()) return "missing customer name";
   if (
     typeof customer.email !== "string" ||
     customer.email !== customer.email.trim() ||
@@ -178,30 +135,18 @@ export function orderProblem(order: Order): string | null {
   ) {
     return "missing customer email";
   }
-  if (!isCountry(customer.country)) {
-    return "unknown country";
-  }
-  if (!isTier(customer.tier)) {
-    return "unknown tier";
-  }
-  if (!isOrderStatus(order.status)) {
-    return "unknown status";
-  }
-  if (typeof order.express !== "boolean") {
-    return "invalid express flag";
-  }
-  if (!Number.isFinite(order.weightKg) || order.weightKg < 0) {
-    return "invalid weight";
-  }
-  if (typeof order.coupon !== "string") {
-    return "invalid coupon";
-  }
+  if (!isCountry(customer.country)) return "unknown country";
+  if (!isTier(customer.tier)) return "unknown tier";
+
+  if (!isOrderStatus(order.status)) return "unknown status";
+  if (typeof order.express !== "boolean") return "invalid express flag";
+  if (!Number.isFinite(order.weightKg) || order.weightKg < 0) return "invalid weight";
+  if (typeof order.coupon !== "string") return "invalid coupon";
   if (typeof order.isMember !== "boolean" || typeof order.isFirstOrder !== "boolean") {
     return "invalid member flag";
   }
-  if (!Array.isArray(order.items) || order.items.length === 0) {
-    return "empty order";
-  }
+
+  if (!Array.isArray(order.items) || order.items.length === 0) return "empty order";
   if (
     order.items.some(
       (item) =>
@@ -217,14 +162,37 @@ export function orderProblem(order: Order): string | null {
   ) {
     return "invalid item";
   }
-  const subtotal = calcSubtotal(order.items);
-  if (!Number.isFinite(subtotal)) {
-    return "total out of range";
-  }
+  if (!Number.isFinite(calcSubtotal(order.items))) return "total out of range";
   return null;
 }
 
-/** Pure total (subtotal + shipping - discount). Caller must pass a valid order — see orderProblem. */
+export function parseOrder(order: Order): Result<Order> {
+  const problem = orderProblem(order);
+  return problem === null ? { ok: true, value: order } : { ok: false, error: problem };
+}
+
+export function shippingFee(order: Order): number {
+  const { country } = order.customer;
+  const key: ShippingKey = `${country}:${order.express ? "express" : "standard"}:${order.weightKg > HEAVY_WEIGHT_KG ? "heavy" : "light"}`;
+  return SHIPPING_FEES[key];
+}
+
+export function discount(input: DiscountInput): number {
+  const rate =
+    TIER_DISCOUNT_RATES[requireTier(input.tier)] +
+    (input.totalQuantity >= BULK_QUANTITY ? BULK_DISCOUNT_RATE : 0) +
+    (input.isHoliday && input.isFirstOrder ? FIRST_ORDER_HOLIDAY_RATE : 0);
+  const fixed =
+    input.coupon.trim() === SALE50_COUPON && input.isMember && input.subtotal >= SALE50_MIN_SUBTOTAL
+      ? SALE50_AMOUNT
+      : 0;
+  return Math.min(input.subtotal * rate + fixed, input.subtotal * MAX_DISCOUNT_RATIO);
+}
+
+export function calcSubtotal(items: OrderItem[]): number {
+  return items.reduce((sum, item) => sum + item.price * item.qty, 0);
+}
+
 export function orderTotal(order: Order, context?: PricingContext): number {
   const subtotal = calcSubtotal(order.items);
   const totalQuantity = order.items.reduce((sum, item) => sum + item.qty, 0);
@@ -245,54 +213,27 @@ export function orderTotal(order: Order, context?: PricingContext): number {
 
 export function processOrder(order: Order, context?: PricingContext): Result<number> {
   const problem = orderProblem(order);
-  if (problem !== null) {
-    return { ok: false, error: problem };
-  }
+  if (problem !== null) return { ok: false, error: problem };
   const total = orderTotal(order, context);
-  if (!Number.isFinite(total)) {
-    return { ok: false, error: "total out of range" };
-  }
-  return { ok: true, value: total };
+  return Number.isFinite(total)
+    ? { ok: true, value: total }
+    : { ok: false, error: "total out of range" };
 }
 
 export function orderNotification(order: Order): string {
-  if (
-    order === null ||
-    typeof order !== "object" ||
-    typeof order.id !== "string" ||
-    !order.id.trim() ||
-    !isCountry(order.customer?.country)
-  ) {
-    throw new RangeError("orderNotification: order needs an id and valid country");
-  }
   return order.customer.country === "VN"
     ? `Don hang ${order.id} da duoc xu ly`
     : `Order ${order.id} processed`;
 }
 
 export function emailCustomers(orders: Order[], country: Country): string[] {
-  if (!isCountry(country)) {
-    throw new RangeError(`unknown country: ${country}`);
-  }
-  if (!Array.isArray(orders)) {
-    throw new TypeError("emailCustomers: orders must be an array");
-  }
   return orders
-    .filter((order) => order?.customer?.country === country && order?.status === STATUS_DONE)
-    .map((order) => order.customer.email)
-    .filter(
-      (email): email is string =>
-        typeof email === "string" && email === email.trim() && email.includes("@"),
-    );
+    .filter((order) => order.customer.country === country && order.status === STATUS_DONE)
+    .map((order) => order.customer.email);
 }
 
 export function canCheckout(user: { age: number; country: string }, order: Order): boolean {
-  return (
-    Number.isFinite(user?.age) &&
-    user.age >= MIN_CHECKOUT_AGE &&
-    isCountry(user?.country) &&
-    orderProblem(order) === null
-  );
+  return user.age >= MIN_CHECKOUT_AGE && isCountry(user.country) && orderProblem(order) === null;
 }
 
 export function parseConfig(text: string): Result<unknown> {
@@ -312,15 +253,9 @@ export function reportOrders(orders: Order[]): {
   doneCount: number;
   avgSubtotal: number | null;
 } {
-  if (!Array.isArray(orders)) {
-    throw new TypeError("reportOrders: orders must be an array");
-  }
-  const valid = orders.filter(
-    (order) => order !== null && typeof order === "object" && Array.isArray(order.items),
-  );
-  const orderCount = valid.length;
-  const doneCount = valid.filter((order) => order.status === STATUS_DONE).length;
-  const totalSubtotal = valid.reduce((sum, order) => sum + calcSubtotal(order.items), 0);
+  const orderCount = orders.length;
+  const doneCount = orders.filter((order) => order.status === STATUS_DONE).length;
+  const totalSubtotal = orders.reduce((sum, order) => sum + calcSubtotal(order.items), 0);
   return {
     orderCount,
     doneCount,
@@ -328,28 +263,11 @@ export function reportOrders(orders: Order[]): {
   };
 }
 
-function requireTier(tier: string): Tier {
-  if (!isTier(tier)) {
-    throw new RangeError(`unknown tier: ${tier}`);
-  }
-  return tier;
-}
-
-function tierLabel(tier: string): string {
-  return TIER_LABELS[requireTier(tier)];
-}
-
 export function formatBill(order: Order, total?: number): string {
-  if (order === null || typeof order !== "object" || typeof order.id !== "string" || !order.id.trim()) {
-    throw new TypeError("formatBill: order must be an object with an id");
-  }
-  if (typeof order.customer?.name !== "string" || !order.customer.name.trim()) {
-    throw new TypeError("formatBill: order needs a customer name");
-  }
   const fields: [string, string][] = [
     ["ID", order.id],
     ["NAME", order.customer.name.trim()],
-    ["TIER", tierLabel(order.customer.tier)],
+    ["TIER", TIER_LABELS[order.customer.tier]],
   ];
   if (typeof total === "number" && Number.isFinite(total)) {
     fields.push(["TOTAL", String(total)]);
