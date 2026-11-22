@@ -2,6 +2,8 @@
 
 Use this when the task is to review a diff, or before a non-trivial code edit is called done — any source file, not only frontend. The author of the diff does not fill this report.
 
+If the diff adds or changes tested behaviour, or rewrites logic that replaces an older implementation, this playbook does not apply: use `playbooks/review-invariants.md` instead. It asks which invariant has no test that would fail if it broke, and which invariant the previous version held, instead of hunting for findings.
+
 You are not the author. You do not have the writing session. Do not praise. Do not edit, commit, checkout, or spawn another reviewer.
 
 ## Fan-out (the author runs this part)

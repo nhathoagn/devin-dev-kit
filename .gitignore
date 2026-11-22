@@ -2,3 +2,8 @@
 __pycache__/
 *.pyc
 .openidea/
+
+node_modules/
+reports/
+.stryker-tmp/
+.scratch/

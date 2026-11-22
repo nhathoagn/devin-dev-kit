@@ -1,0 +1,24 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "testRunner": "command",
+  "commandRunner": {
+    "command": "bun test extensions/checkout"
+  },
+  "mutate": [
+    "extensions/checkout/pricing.ts",
+    "extensions/checkout/store.ts",
+    "extensions/checkout/checkout.ts"
+  ],
+  "coverageAnalysis": "off",
+  "reporters": [
+    "clear-text",
+    "json"
+  ],
+  "thresholds": {
+    "high": 80,
+    "low": 80,
+    "break": 80
+  },
+  "timeoutMS": 20000,
+  "concurrency": 2
+}
