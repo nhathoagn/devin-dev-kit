@@ -17,6 +17,7 @@
     "noPropertyAccessFromIndexSignature": true
   },
   "include": [
-    "extensions/checkout/**/*.ts"
+    "extensions/checkout/**/*.ts",
+    "fixtures/**/*.ts"
   ]
 }

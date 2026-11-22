@@ -28,7 +28,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["extensions/checkout/**/*.test.ts"],
+    files: ["extensions/checkout/**/*.test.ts", "fixtures/**/*.test.ts"],
     rules: {
       "max-lines-per-function": "off",
       "max-depth": "off",

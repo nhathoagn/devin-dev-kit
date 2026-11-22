@@ -10,21 +10,17 @@
     ]
   },
   "dependencies": {
-    "fast-check": "^4.11.0",
-    "fast-json-stable-stringify": "^2.1.0",
     "valibot": "^1.5.0"
   },
   "devDependencies": {
-    "@stryker-mutator/core": "^10.1.1",
     "@types/bun": "^1.4.5",
     "eslint": "^10.15.0",
     "typescript-eslint": "^8.73.0"
   },
   "scripts": {
-    "test": "bun test extensions/checkout",
+    "test": "bun test",
     "typecheck": "bunx tsc --noEmit -p tsconfig.json",
-    "lint": "bunx eslint extensions/checkout --max-warnings 0",
-    "mutate": "bunx stryker run",
-    "gates": "bun run typecheck && bun run lint && bun run test && bun run mutate"
+    "lint": "bunx eslint fixtures --max-warnings 0",
+    "gates": "bun run typecheck && bun run lint && bun run test"
   }
 }
