@@ -57,7 +57,6 @@ plugin-architecture
 │   └── test_versions.py     plugin.json = .devin-plugin/plugin.json = package.json = marketplace.json = CHANGELOG
 ├── extensions/
 │   ├── fe-gate.ts           omp extension (khai báo `omp.extensions` trong package.json): map edit/ast_edit/write/bash sang payload gate (nhận old_string, oldText, oldString, old_str, old, search; edits[]), chặn edit thiếu nhãn qua tool_call, kiểm conflict/rules.sh sau ghi qua tool_result — gọi cùng scripts/fe-gate.sh; ghi verdict cuối (ok/blocked/note/rules) lên status line
-│   ├── auto-review.ts        omp extension: sau mỗi edit/write/ast_edit, append note bắt agent chạy fe-kit reviewer; tên file edit gom qua before_agent_start; reset theo session_start
 │   └── fe-gate.test.ts      29 case `node --test`, spawn gate thật (Windows: qua `sh`, đường dẫn dấu /)
 ├── rules/                   nội dung bơm vào prompt (hook nạp); frontmatter thêm trigger: always_on cho Devin
 │   ├── fe-implementation.md quy trình edit: quyết định trước, code sau
@@ -74,7 +73,7 @@ plugin-architecture
 │   ├── fe-kit/
 │   │   ├── SKILL.md         entry: chọn playbook theo loại việc (new-ui, fix-bug, refactor, perf, review)
 │   │   ├── CHANGELOG.md     lịch sử version
-│   │   ├── playbooks/       6 playbook: new-ui, fix-bug, refactor-ui, perf-ui, review-ui, review-diff — mỗi playbook gọi references/
+│   │   ├── playbooks/       8 playbook: new-ui, fix-bug, refactor-ui, perf-ui, review-ui, review-diff, cleanup, author-loop — mỗi playbook gọi references/
 │   │   ├── references/      chi tiết: ownership, reuse, performance, code-quality, audit, REVIEW_CHECKLIST, feature-isolation, external,
 │   │   │                    handoff (gate trước commit), smells-checklist + fowler-checklist + posd-checklist
 │   │   │                    + tidy-checklist + test-checklist (bộ chấm SM/F/O/T/U), patterns, frontend-moves
@@ -145,6 +144,8 @@ skill://fe-kit  (SKILL.md)
 │   ├── refactor-ui.md  split, move, restructure
 │   ├── perf-ui.md      waterfall, bundle, rerender
 │   ├── review-ui.md    soi 1 màn hình có sẵn → báo cáo tiếng Việt
+│   ├── cleanup.md      dọn/gọn code không phải UI (service, domain, script)
+│   ├── author-loop.md  author của diff đi qua lens review → merge → fix → verify
 │   └── review-diff.md  diff trước commit — TÁC GIẢ KHÔNG ĐẠO CÁI NÀY
 ├── playbook gọi reference cụ thể (không đọc file playbook không nêu)
 │   ├── ownership.md          → field Architecture Ownership
@@ -165,7 +166,7 @@ tác giả viết diff ──KHÔNG được chấm──► bàn giao
 ├── Claude Code: agent fe-kit:reviewer (agents/reviewer.md)
 │   ├── read-only: Read, Grep, Glob, Bash — không sửa, không commit, không spawn reviewer khác
 │   ├── task PHẢI kèm playbook path, thiếu → dừng, không tự bịa checklist
-│   └── đọc playbooks/review-diff.md → chạy project_config.py → đi REVIEW_CHECKLIST.md + F1..F23 + luật dự án → grep caller → lọc lại → review_check.py
+│   └── đọc playbooks/review-diff.md → chạy project_config.py → đi REVIEW_CHECKLIST.md + F1..F24 + luật dự án → grep caller → lọc lại → review_check.py
 └── omp: context mới, duy nhất nhiệm vụ = diff range + skill://fe-kit/playbooks/review-diff.md
     └── không mang ghi chú của tác giả
 Báo cáo: Verdict đứng đầu, mỗi miss là 1 câu, xong rồi dừng.

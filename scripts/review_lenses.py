@@ -1,5 +1,10 @@
 """Split a diff review into lenses: one fresh reviewer per lens, in parallel.
 
+Two lenses — `coverage` and `regression` — belong to the invariants mode
+(playbooks/review-invariants.md), used when the diff adds or changes tested
+behaviour. They carry no checklist items: their report answers a question about
+the test suite, not a catalogue of defects.
+
 Run: python3 scripts/review_lenses.py list [--diff BASE..HEAD]
      python3 scripts/review_lenses.py items <lens>
 
@@ -57,6 +62,32 @@ LENSES = [
             " Report every case that silently accepts an invalid input, throws where the"
             " signature promises a typed result, returns a sentinel a caller cannot"
             " distinguish from a real value, or applies a default the caller never asked for."
+        ),
+    },
+    {
+        "name": "coverage",
+        "title": "Bất biến nào chưa có test (chế độ invariants)",
+        "items": [],
+        "brief": (
+            "Enumerate every invariant the diff must hold — stock never goes negative,"
+            " one settled payload deducts once, money stays a safe integer, a rejected"
+            " order moves nothing, same input yields the same key, a different payload on"
+            " the same id is a conflict. For each invariant name the exact test that would"
+            " fail if it broke. When no test exists, write NO TEST and give the smallest"
+            " input that breaks it, then run that input. An invariant with neither a test"
+            " nor a run is not reported as covered."
+        ),
+    },
+    {
+        "name": "regression",
+        "title": "Bản sửa trước có phá bất biến không (chế độ invariants)",
+        "items": [],
+        "brief": (
+            "Compare the diff with the version it replaces. List every invariant the older"
+            " version held that this one no longer holds, each with one input and the"
+            " observed result on both sides. Do not list old defects the diff fixes; the"
+            " question is what was lost. A behaviour that was deliberately tightened is"
+            " listed separately as accepted, with the caller cost named."
         ),
     },
     {

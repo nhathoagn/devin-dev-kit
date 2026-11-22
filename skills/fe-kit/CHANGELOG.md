@@ -2,6 +2,15 @@
 
 
 
+## 1.38.2
+
+The checkout experiment is finished: the seeded fixture was fixed in place, every seeded defect review (30/30 recall) and the pass-2 verification shipped, and the tree no longer carries a test suite or dead dependencies.
+
+- `fixtures/review-seed.ts` rewritten in place as the fixed entry point (`createOrder`, `settle`, `shipsBy`, `auditTotal`); support modules live in `fixtures/fixed/` (schema valibot boundary, canonical `attemptKey`, single-source `totalsFor` pricing, atomic `StockPort`/`SettlementStore` ports, retry/timeout `notifyWarehouse`, abortable `startStockPolling`). Original seed preserved at `.scratch/review-seed.orig.ts`; the answer key is marked STALE.
+- Removed: 14 test files (`extensions/fe-gate.test.ts`, `scripts/test_*.py`), `stryker.config.json`, and dead deps `fast-check`, `fast-json-stable-stringify`, `@stryker-mutator/core`. `package.json` test script is now plain `bun test`; `mutate` script removed.
+- `eslint.config.mjs` no longer ignores `fixtures/review-seed.ts` and its test glob covers `fixtures/**/*.test.ts`; `tsconfig.json` includes `fixtures/**/*.ts`.
+- Version 1.38.2 in `.claude-plugin/plugin.json`, `.devin-plugin/plugin.json`, `package.json`, and both places in `marketplace.json`.
+
 ## 1.38.1
 
 The kit scored test existence (T group) and test quality (U group) but had no item for the states a table or list must be seen in, and no item for the scrollbar-while-short bug a fixed-height table produces.
