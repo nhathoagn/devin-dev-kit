@@ -1,6 +1,6 @@
 ---
 name: ut-report
-description: Viết báo cáo UT (unit test do dev tự test) của một màn (hệ cũ ↔ hệ mới) ra file Excel theo template chuẩn của team — dòng đầu Branch / Redmine, cột Case (#, Nhóm, Trường hợp mã 1.1), Mong đợi (Hệ cũ, Hệ mới), Ngày test, Kết quả (dropdown OK/NG/NA/NT/NG -> OK), Tester (Dev), Note/Lý do; nhóm Layout / Quyền truy cập / Mở màn / Validation / Nghiệp vụ / Database / Message / CR. Dùng khi được yêu cầu "viết report UT", "UT report", "báo cáo UT", "báo cáo unit test", "điền sheet UT", hoặc xuất kết quả UT một màn ra xlsx.
+description: Viết báo cáo UT (unit test do dev tự test) của một màn (hệ cũ ↔ hệ mới) ra file Excel theo template chuẩn của team — dòng đầu Branch / Redmine, cột Case (#, Nhóm, Trường hợp mã 1.1), Mong đợi (Hệ cũ, Hệ mới), Ngày test, Kết quả (dropdown OK/NG/NA/NT/NG -> OK), Tester (Dev), Note/Lý do; nhóm Layout / Quyền truy cập / Mở màn / Validation / Nghiệp vụ / Database / Message / CR; màn có bảng/danh sách bắt buộc có case cho đủ các mức số lượng bản ghi (0 / 1 / ít / nhiều). Dùng khi được yêu cầu "viết report UT", "UT report", "báo cáo UT", "báo cáo unit test", "điền sheet UT", hoặc xuất kết quả UT một màn ra xlsx.
 ---
 
 # ut-report — báo cáo UT theo template
@@ -90,6 +90,9 @@ Giữ thứ tự dưới, bỏ nhóm không áp dụng. Thêm nhóm riêng của
    `Đã đúng với figma, nội dung CR đã được phản ánh.` + danh sách `- Giao diện` / `- Message` /
    `- Dialog/Loading` / `- Responsive`. Note: `Theo figma, hệ cũ đã không còn phù hợp.`
    Thêm case so phần không theo figma: đủ ô, đúng thứ tự, nội dung từng combobox.
+   Màn có bảng / danh sách: một case cho hình dạng bảng theo **số lượng bản ghi** — 0 dòng (empty state),
+   1 dòng, ít dòng, nhiều dòng vượt vùng hiển thị. Ít dòng mà bảng vẫn hiện thanh cuộn hoặc thừa khoảng
+   trống cố định bên dưới là bug, ghi `NG` + `file:line`.
 2. **Quyền truy cập** — có quyền trực tiếp, có quyền qua nhóm quyền, nhóm đã xoá, không có quyền (gõ thẳng URL),
    chưa đăng nhập, mục trên menu.
 3. **Mở màn** (`初期表示`) — mở không kèm tham số, tham số không có trong master, dữ liệu đã có / chưa có.
@@ -100,7 +103,9 @@ Giữ thứ tự dưới, bỏ nhóm không áp dụng. Thêm nhóm riêng của
    toàn góc / khoảng trắng, liên ô, thứ tự check, nhiều lỗi cùng lúc.
 6. **Nghiệp vụ – {action} ({mã xử lý})** hoặc **Action trên màn hình + Database ({nút})** — một nhóm cho mỗi nút / xử lý,
    vd. `Nghiệp vụ – 検索 (AB101001)`, `Nghiệp vụ – CSV出力 (AB101002)`, `Action trên màn hình + Database (再読込 (Tải lại))`.
-   Gồm: hộp xác nhận, Huỷ, thành công, bấm liên tục, kết quả 0 dòng / quá giới hạn, thứ tự, định dạng số.
+   Gồm: hộp xác nhận, Huỷ, thành công, bấm liên tục, kết quả quá giới hạn, thứ tự, định dạng số.
+   Kết quả hiện trong bảng / danh sách: đủ bốn mức số lượng bản ghi — **0 dòng**, **1 dòng**, **ít dòng**,
+   **nhiều dòng** vượt vùng hiển thị — và kiểm luôn hình dạng bảng ở từng mức (case bắt buộc 9 ở mục 3).
 7. **Action trên màn hình + Database (cập nhật đồng thời)** — 2 user cùng sửa, lưu gần như cùng lúc.
 8. **Xử lý Database** — bảng đọc / ghi, điều kiện lọc (`FLG_DELETE`, JOIN), so SQL hệ cũ, bảng không đổi khi chỉ đọc.
 9. **Message / Dialog** — hộp xác nhận, message thành công, khung lỗi, cuộn tới lỗi, loading.
@@ -240,6 +245,12 @@ Màn có tình huống tương ứng thì phải có case. Màn không có tình
      nhập 納入先 / 需要家 / 送り先 → 消費税率 được điền lại như hệ cũ (10, hoặc 0 khi 得意先 miễn thuế).
      Thiếu case này nên lỗi thứ hai lọt ra cùng bản fix.
    - Bản fix không làm ô nào nhận giá trị mới → bỏ mục này cho bug đó, không cần dòng `NA`.
+9. **Bảng / danh sách theo số lượng bản ghi.** Màn có bảng hoặc danh sách phải có đủ bốn case: **0 bản ghi**
+   (empty state hiện đúng, không phải một khoảng trắng trơ), **1 bản ghi**, **ít bản ghi** (vài dòng),
+   **nhiều bản ghi** vượt vùng hiển thị. Cột Hệ cũ / Hệ mới ghi hình dạng bảng ở từng mức: chiều cao,
+   thanh cuộn, thông báo không có dữ liệu. Ít bản ghi mà bảng **vẫn hiện thanh cuộn** hoặc **thừa một
+   khoảng trống cố định bên dưới** là bug — chiều cao bảng cố định / `min-height` sai. Ghi `NG` kèm
+   `file:line` của chỗ set chiều cao, không ghi `OK` chỉ vì dữ liệu đúng.
 
 Mỗi bug tester đã báo cho màn này cũng là một case: ghi số bug trong Note, Kết quả `NG -> OK` sau khi đã chạy lại.
 
