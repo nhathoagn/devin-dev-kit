@@ -90,10 +90,10 @@ def _():
 def _():
     return "Do not grade a diff you wrote" in output_of(prompt_event("implement a helper to sum numbers"))
 
-@case("inject", "a non-frontend source write injects the review rule")
+@case("block", "a non-frontend source write is gated like frontend")
 def _():
     out = output_of(edit_event(path="util/sum.py", old="a", new="b"))
-    return "Do not grade a diff you wrote" in out
+    return "Blocked." in out
 
 @case("inject", "post-compaction still reminds the review rule after a non-gated edit")
 def _():
@@ -126,10 +126,10 @@ def _():
     out = seq([prompt_event("thêm validate vào form react"), edit_event(path=target)])
     return "Blocked. Run this exec command" in out and "Runtime owner" in out
 
-@case("open", ".ts edit is not blocked")
+@case("block", ".ts edit is gated")
 def _():
     target = write_source("src/x.ts", "export const X = 1\n")
-    return '"decision"' not in output_of(edit_event(path=target), dict(ENV))
+    return "Blocked." in output_of(edit_event(path=target), dict(ENV))
 
 @case("allow", "echo declaration then the edit is open")
 def _():

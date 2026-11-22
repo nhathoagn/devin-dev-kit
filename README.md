@@ -89,7 +89,7 @@ Người viết diff không được chấm diff đó.
 | Devin | Subagent `fe-kit:reviewer`, tool `read` / `grep` / `glob` / `exec`, không sửa, không commit, không spawn reviewer khác |
 
 Không đưa ghi chú của tác giả. Reviewer thiếu playbook path trong task thì dừng, không tự bịa checklist.
-Nó đi hết `references/REVIEW_CHECKLIST.md` rồi F1–F22 trong `references/review-checks.md`, và
+Nó đi hết `references/REVIEW_CHECKLIST.md` rồi F1–F24 trong `references/review-checks.md`, và
 tìm file spec của task trước khi chấm scope.
 
 Report theo `references/review-output.md`: kết luận đứng đầu (một hoặc hai câu, có đưa lên được không),
@@ -219,8 +219,9 @@ Có sẵn `presets/legacy-rewrite/` cho dự án viết lại hệ cũ: giống 
 Sau review, `scripts/review_check.py` kiểm report: câu verdict, mức của từng lỗi, `file:dòng` có thật,
 và mục `Nguồn và độ phủ` nêu đủ file trong diff.
 
-Diff đến 10 file: `scripts/review_lenses.py list` chia diff thành sáu góc nhìn (vệ sinh diff, đúng biên
-và luồng, hợp đồng/caller/spec/test, kiến trúc và dùng lại, tên và mở rộng, tải và hiệu năng) — mỗi lens
+Diff đến 10 file: `scripts/review_lenses.py list` chia diff thành sáu góc nhìn chấm checklist (vệ sinh
+diff, đúng biên và luồng, hợp đồng/caller/spec/test, kiến trúc và dùng lại, tên và mở rộng, tải và hiệu
+năng) — `probe` và `invariant` chỉ chạy ở pass 2 sau fix; mỗi lens
 một reviewer chạy song song, mỗi item của checklist thuộc đúng một lens nên không mục nào bị sót hay soi
 hai lần. Diff trên 10 file: `scripts/review_packages.py split` chia gói (tối đa 15 file), mỗi gói một
 reviewer chạy song song, cộng thêm một reviewer `--lens contract` trên toàn range cho caller, spec, và
@@ -292,12 +293,11 @@ scripts/project_config.py  file thay đổi → luật dự án cần đọc (.f
 scripts/review_check.py  kiểm report review-diff trước khi gửi
 scripts/review_packages.py  chia diff lớn thành gói, gộp report các gói
 scripts/review_record.py lưu review theo nhánh, đọc lại cho lần sau
-scripts/review_lenses.py  chia review thành sáu góc nhìn, một reviewer mỗi lens
+scripts/review_lenses.py  chia review thành 8 góc nhìn (6 lens checklist + probe + invariant pass 2), một reviewer mỗi lens
 scripts/yaml_subset.py   đọc tập con YAML, không cần pyyaml
 presets/                 luật theo loại dự án (legacy-rewrite)
 extensions/fe-gate.ts    adapter omp + test
-extensions/auto-review.ts  omp: sau edit bắt agent chạy fe-kit reviewer
-skills/fe-kit/           SKILL.md, 6 playbook, references, evals
+skills/fe-kit/           SKILL.md, 8 playbook, references, evals
 skills/ui-image-check/   so ảnh với code
 skills/ut-report/        báo cáo UT + build_report.py
 skills/refactor-depth-options/  liệt kê độ sâu refactor trước khi sửa
@@ -313,7 +313,7 @@ CODEMAP.md               bản đồ code: module nào gọi module nào
 |---|---|
 | [`skills/fe-kit/SKILL.md`](skills/fe-kit/SKILL.md) | Workflow, 6 field, hard rule |
 | [`skills/fe-kit/playbooks/`](skills/fe-kit/playbooks/) | Từng loại việc một file |
-| [`skills/fe-kit/references/`](skills/fe-kit/references/) | Ownership, reuse, performance, audit, checklist F1–F23 |
+| [`skills/fe-kit/references/`](skills/fe-kit/references/) | Ownership, reuse, performance, audit, checklist F1–F24 |
 | [`skills/refactor-depth-options/SKILL.md`](skills/refactor-depth-options/SKILL.md) | Ladder độ sâu refactor + khi nào phải hỏi |
 | [`rules/`](rules/) | 5 rule luôn bật, kèm ví dụ |
 | [`CODEMAP.md`](CODEMAP.md) | Bản đồ kiến trúc plugin, ai gọi ai |

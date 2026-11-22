@@ -146,7 +146,7 @@ CASES = [
     ("bash read-only on .tsx", chat("đổi đi", T("x")), ("Bash", {"command": "grep -n footer src/A.tsx 2>/dev/null; git diff -- src/A.tsx"}), "allow"),
     ("bash stderr redirect", chat("đổi đi", T("x")), ("Bash", {"command": "npx tsc --noEmit 2>&1 | head"}), "allow"),
     ("bash prettier on .tsx", chat("đổi đi", T("x")), ("Bash", {"command": "npx prettier --write src/A.tsx && npx eslint src/A.tsx"}), "allow"),
-    ("bash write into .ts stays open", chat("đổi đi", T("x")), ("Bash", {"command": "echo x > src/a.ts"}), "allow"),
+    ("bash write into .ts is gated", chat("đổi đi", T("x")), ("Bash", {"command": "echo x > src/a.ts"}), "deny"),
     # A script that builds the path in a variable names only the extension.
     ("bash node loop writes variable .tsx paths", chat("đổi đi", T("x")), ("Bash", {"command": "node -e \"for (const f of files.filter(x => x.endsWith('.tsx'))) fs.writeFileSync(f, s)\""}), "deny"),
     ("bash node reads .tsx, writes json", chat("đổi đi", T("x")), ("Bash", {"command": "node -e \"const s = fs.readFileSync('src/A.tsx', 'utf8'); fs.writeFileSync('out.json', s)\""}), "allow"),
@@ -256,7 +256,7 @@ CASES = [
     ("Write path-only is gated", [U("add field")], ("Write", {"file_path": "src/B.tsx"}), "deny"),
 
     # File types.
-    (".ts file is not gated", [U("add field")], ("Edit", {"file_path": "src/b.ts", "old_string": "a\nb", "new_string": "c\nd"}), "allow"),
+    (".ts file is gated", [U("add field")], ("Edit", {"file_path": "src/b.ts", "old_string": "a\nb", "new_string": "c\nd"}), "deny"),
     (".vue file is gated", [U("add field")], ("Edit", {"file_path": "src/B.vue", "old_string": "a\nb", "new_string": "c\nd"}), "deny"),
 ]
 
@@ -388,8 +388,8 @@ def run_special():
           "allow" if "Do not grade a diff you wrote" in prompt_out("implement a helper to sum numbers", no_config) else "deny", "allow")
     non_fe_write = call_gate({"hook_event_name": "PreToolUse", "tool_name": "Write",
                               "tool_input": {"file_path": "util/sum.py", "content": "x"}, "cwd": TMP})
-    check("a non-frontend source write injects the review rule",
-          "allow" if "Do not grade a diff you wrote" in non_fe_write else "deny", "allow")
+    check("a non-frontend source write is gated like frontend",
+          "allow" if '"permissionDecision": "deny"' in non_fe_write else "deny", "allow")
     code_transcript = write_transcript("code-only.jsonl", [
         U("implement a helper"),
         A([{"type": "tool_use", "name": "Edit", "input": {"file_path": "util/sum.py", "old_string": "a", "new_string": "b"}}]),

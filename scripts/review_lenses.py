@@ -34,7 +34,7 @@ LENSES = [
         "name": "structure",
         "title": "Kiến trúc và dùng lại",
         "items": ["D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9",
-                  "F2", "F3", "F4", "F5", "F6", "F7", "F14", "F22", "F23"],
+                  "F2", "F3", "F4", "F5", "F6", "F7", "F14", "F22", "F23", "F24"],
     },
     {
         "name": "naming",

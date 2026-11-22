@@ -1,5 +1,17 @@
 # Changelog
 
+
+## 1.38.0
+
+An 8-lens fan-out on a seeded anti-pattern fixture surfaced two tooling bugs and three policy gaps: `merge` emitted one spot twice when two reports cited it as `helpers.ts:183` and `extensions/helpers.ts:183`, two lens reports were never written to a file and the merge dropped them silently, a "clean up this service" request had no playbook, nested `if`/`for`-`if` smells passed every diff check, and the gate stopped at JS-family files while a plain `.ts` or `.py` edit skipped it entirely.
+
+- `scripts/review_packages.py` `merge`: gains `--root`, `--files`/`--diff`/`--staged`, and `--lens`. The dedupe key resolves each `file:line` through `review_check._resolve_ref`, so a bare basename cite folds into the repo-relative cite of the same spot; with a source argument the diff and rule files become candidates too. `--lens a,b,…` warns on stderr when a named lens wrote no report. `playbooks/author-loop.md` and `playbooks/review-diff.md` now pin the report path `review-<lens>.md` (`.scratch/` else `/tmp/`) so a missing file means a re-run, not a silent drop.
+- New `skills/fe-kit/playbooks/cleanup.md`: non-UI cleanups run ownership, reuse, the code-quality sweep, the audit table, and the SM/F/O/T checklists — previously reachable only from the UI playbooks. The verify step replaces the screen capture with the module's tests, or a throwaway harness that snapshots every touched export's output before and after.
+- `skills/fe-kit/SKILL.md`: routing table gains `Clean up, shorten, or restructure existing code that is not UI` → `cleanup.md`; the skip rule no longer exempts non-frontend cleanup.
+- `references/REVIEW_CHECKLIST.md` N2: nesting deeper than 2 now fails when the special case could be a guard clause or early return; deeper than 4 still fails outright. `references/review-checks.md` F24: a hand-written loop that is one `filter`/`map`/`reduce`/`find`/`some`/`every` transform fails when the pipeline is shorter and clearer; the `structure` lens owns it.
+- `GATED_EXT_RE` in `scripts/fe-gate.py` and `scripts/devin_gate.py`, and `BASH_EXT`/`BASH_EXT_MENTION_RE` in `scripts/bash_target.py`, now cover the full `source_hit` set — `.ts`, `.py`, `.go`, `.rs`, `.java`, `.kt`, `.kts`, `.rb`, `.php`, `.cs`, `.swift` join the JS-family list — so every source edit needs the label declaration. `wording.py` has no lexer for the new languages: an unknown-dialect edit is gated, not exempt (fail closed). The five playbook gate lines name the covered extensions instead of listing only `.tsx/.jsx/.vue/.svelte`.
+- Version 1.38.0 in `.devin-plugin/plugin.json`, `.claude-plugin/plugin.json`, `package.json`, and both places in `marketplace.json`.
+
 ## 1.37.0
 
 One reviewer grading one diff once left issues for a second pass: a rename review missed the `is`-prefix returning a truthy string, and a clean-up kept a hand-rolled loop beside the inlined code it sat next to. The fix is fan-out: every diff now gets one reviewer per checklist lens in parallel, the reports merge with the same `file:line` folded into one paragraph, the author fixes once, and one fresh reviewer checks each finding at HEAD.

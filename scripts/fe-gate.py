@@ -649,7 +649,7 @@ def conflict_merge_only():
     new_tokens = set(TOKEN_RE.findall(new))
     return bool(new_tokens) and new_tokens <= old_tokens
 
-GATED_EXT_RE = re.compile(r"\.(tsx|jsx|js|mjs|cjs|vue|svelte|astro|mdx)$", re.I)
+GATED_EXT_RE = re.compile(r"\.(tsx|jsx|js|ts|mjs|cjs|vue|svelte|astro|mdx|py|go|rs|java|kt|kts|rb|php|cs|swift)$", re.I)
 
 def edit_pairs():
     # Edit has one pair. MultiEdit has one pair per edit. A path-only payload has none and stays gated.
