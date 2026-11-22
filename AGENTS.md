@@ -5,25 +5,21 @@ Chạy và báo **lệnh + exit code** cho từng cổng dưới đây. Một c�
 
 ```bash
 bunx tsc --noEmit -p tsconfig.json
-bunx eslint extensions/checkout --max-warnings 0
-bun test extensions/checkout
+bunx eslint fixtures --max-warnings 0
 ```
 
-## Checkout (`extensions/checkout/`)
-- Đọc `extensions/checkout/SPEC.md` trước khi sửa. Đó là hợp đồng: bất biến `INV-01…09`, threat model, rubric severity.
-- Input chỉ vào qua `readOrder()` trong `schema.ts`. Không validate lại ở chỗ khác, không tự chuẩn hoá ngoài schema.
-- Idempotency và trừ kho chỉ qua `CheckoutStore.attempt()`. **Không** thêm Map/LRU/tombstone dedupe trong process — lớp lỗi đó đã sinh 11 blocker.
-- Key/digest chỉ tạo trong `canonical.ts`. Không `JSON.stringify`, không `join`, không digest tự chế.
-- Mọi field tiền đi qua `representable()` **trước** khi chạm kho.
-- Type vùng/tier lấy từ schema (`Region`, `Tier`); hằng số dùng `as const satisfies Record<Region, …>`.
-- Giữ phần thuần (schema, canonical, pricing) tách khỏi phần có tác dụng phụ (store).
+Repo hiện không có test suite — không chạy `bun test` làm cổng.
+
+## Review flow (`scripts/`)
+- Fan-out review: `python3 scripts/review_lenses.py list --pass 1` in danh sách lens pass 1 (6 checklist lens + `audit`); `--pass 2` in lens pass 2 (`correctness`, `contract`, `probe`, `invariant`); `--pass invariants` in `coverage` + `regression` cho playbook `review-invariants.md`.
+- Một lens một reviewer. Report ghi `Lens: <name>` rồi merge bằng `python3 scripts/review_packages.py merge --root <repo> --lens <a,b,…> --out <file> <reports>`.
+- Report cuối phải qua `python3 scripts/review_check.py --root <repo> --report <file>`.
 
 ## Sửa lỗi
 - Test đỏ trước, sửa sau. Không sửa test đã có trong cùng PR fix.
-- Repro là **test trong repo**, không phải script `/tmp`.
-- Cùng một cơ chế bị sửa lần thứ hai mà vẫn sinh finding cùng nhóm → **dừng vá**, viết ghi chú thiết kế lại.
-- Mỗi fix một commit: `fix(checkout): <F-xxx> <tóm tắt>`.
+- Repro là test trong repo, không phải script `/tmp`.
+- Mỗi fix một commit: `fix(<scope>): <F-xxx> <tóm tắt>`.
 
 ## Không làm
-- Không import file fixture (file cố tình chứa lỗi để kiểm thử tool review). Fixture sống ngoài `extensions/`, không nằm cạnh code sản phẩm.
+- Không import file fixture (`fixtures/` chứa input cố tình lỗi để kiểm review tool). Fixture sống ngoài code sản phẩm.
 - Không thêm eviction cho `receipts`/`settled` để "giảm bộ nhớ": evict receipt làm replay trừ kho lần hai.

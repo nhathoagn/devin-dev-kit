@@ -40,24 +40,14 @@ plugin-architecture
 │   ├── yaml_subset.py       đọc tập con YAML bằng thư viện chuẩn; cú pháp ngoài tập con → YamlError kèm số dòng
 │   ├── review_check.py      kiểm report review-diff: verdict, mức lỗi, file:dòng có thật, mục Nguồn và độ phủ
 │   ├── review_packages.py   split: diff trên 10 file → gói tối đa 15 file, mỗi gói một reviewer; merge: gộp report các gói/lens (verdict nặng nhất, cùng file:dòng gom một đoạn)
-│   ├── review_lenses.py    list: 6 góc nhìn chia hết checklist (mỗi item một lens); items <lens>: mã item cho brief task
+│   ├── review_lenses.py    list [--pass 1|2|invariants]: pass 1 = 6 lens checklist + audit (đi audit.md); pass 2 = correctness, contract, probe, invariant; items/brief <lens>: mã item hoặc task brief
 │   ├── review_record.py     save: lưu report + sha vào .fe-kit/reviews/<branch>.md; last: in sha và lỗi cũ cho lần review sau
-│   ├── test_wording.py      85 test lexer/token diff
-│   ├── test_variable_rename.py  18 test: đổi tên biến là thay đổi hành vi, gate phải chặn
-│   ├── test_fe_gate.py      223 case cho hành vi fe-gate.py
-│   ├── test_bash_target.py  18 test: sed/perl -i, cp/mv, redirect trong quote, script test không bị gate
-│   ├── test_handoff.py      13 test: thiếu/thiếu section/chưa approve → block; sửa sau approve → stale; `handoff: off` tắt gate
-│   ├── test_devin_gate.py   27 test cho devin_gate.py: inject, block, echo nhãn, bug repro, wording exempt, exec ghi file, isolation theo session
-│   ├── test_yaml_subset.py  52 test, so với pyyaml khi máy có
-│   ├── test_project_config.py  52 test glob, fallback, config, lỗi, preset, git, thư mục con, tên non-ASCII
-│   ├── test_review_check.py 25 test report
-│   ├── test_review_packages.py 25 test split/merge/dedupe
-│   ├── test_review_record.py 15 test save/last
-│   ├── test_rule_copies.py  một câu luật chỉ nằm ở một file (rules/ → skill, SKILL.md → playbook)
-│   └── test_versions.py     plugin.json = .devin-plugin/plugin.json = package.json = marketplace.json = CHANGELOG
+│   ├── test_* đã gỡ (62310ca) — repo hiện không có test suite
+├── fixtures/              input cố tình lỗi để kiểm review tool; không phải code sản phẩm, không import vào đâu
+│   ├── review-seed.ts     module seed chứa các lớp lỗi để soi bằng lens
+│   └── fixed/             bản đã sửa: canonical, delivery, polling, pricing, schema, stock
 ├── extensions/
-│   ├── fe-gate.ts           omp extension (khai báo `omp.extensions` trong package.json): map edit/ast_edit/write/bash sang payload gate (nhận old_string, oldText, oldString, old_str, old, search; edits[]), chặn edit thiếu nhãn qua tool_call, kiểm conflict/rules.sh sau ghi qua tool_result — gọi cùng scripts/fe-gate.sh; ghi verdict cuối (ok/blocked/note/rules) lên status line
-│   └── fe-gate.test.ts      29 case `node --test`, spawn gate thật (Windows: qua `sh`, đường dẫn dấu /)
+│   └── fe-gate.ts           omp extension (khai báo `omp.extensions` trong package.json): map edit/ast_edit/write/bash sang payload gate (nhận old_string, oldText, oldString, old_str, old, search; edits[]), chặn edit thiếu nhãn qua tool_call, kiểm conflict/rules.sh sau ghi qua tool_result — gọi cùng scripts/fe-gate.sh; ghi verdict cuối (ok/blocked/note/rules) lên status line
 ├── rules/                   nội dung bơm vào prompt (hook nạp); frontmatter thêm trigger: always_on cho Devin
 │   ├── fe-implementation.md quy trình edit: quyết định trước, code sau
 │   ├── reuse-duplication.md tái sử dụng implementation có sẵn, cấm viết trùng
@@ -73,10 +63,10 @@ plugin-architecture
 │   ├── fe-kit/
 │   │   ├── SKILL.md         entry: chọn playbook theo loại việc (new-ui, fix-bug, refactor, perf, review)
 │   │   ├── CHANGELOG.md     lịch sử version
-│   │   ├── playbooks/       8 playbook: new-ui, fix-bug, refactor-ui, perf-ui, review-ui, review-diff, cleanup, author-loop — mỗi playbook gọi references/
-│   │   ├── references/      chi tiết: ownership, reuse, performance, code-quality, audit, REVIEW_CHECKLIST, feature-isolation, external,
+│   │   ├── playbooks/       9 playbook: new-ui, fix-bug, refactor-ui, perf-ui, review-ui, review-diff, review-invariants, cleanup, author-loop — mỗi playbook gọi references/
+│   │   ├── references/      chi tiết: ownership, reuse, performance, code-quality, audit, REVIEW_CHECKLIST + review-checks (bảng F-item) + review-output (bản report người đọc), feature-isolation, external,
 │   │   │                    handoff (gate trước commit), smells-checklist + fowler-checklist + posd-checklist
-│   │   │                    + tidy-checklist + test-checklist (bộ chấm SM/F/O/T/U), patterns, frontend-moves
+│   │   │                    + tidy-checklist + test-checklist (bộ chấm SM/F/O/T/U), patterns, frontend-moves, codemap-host-report
 │   │   └── evals/           evals.json + triggers.json + 2 report eval (e2e-gate, ut-review)
 │   ├── ut-report/
 │   │   ├── SKILL.md         xuất báo cáo UT 1 màn hình ra .xlsx
@@ -166,7 +156,7 @@ tác giả viết diff ──KHÔNG được chấm──► bàn giao
 ├── Claude Code: agent fe-kit:reviewer (agents/reviewer.md)
 │   ├── read-only: Read, Grep, Glob, Bash — không sửa, không commit, không spawn reviewer khác
 │   ├── task PHẢI kèm playbook path, thiếu → dừng, không tự bịa checklist
-│   └── đọc playbooks/review-diff.md → chạy project_config.py → đi REVIEW_CHECKLIST.md + F1..F24 + luật dự án → grep caller → lọc lại → review_check.py
+│   └── đọc playbooks/review-diff.md → chạy project_config.py → đi REVIEW_CHECKLIST.md + F1..F25 + luật dự án → grep caller → lọc lại → review_check.py
 └── omp: context mới, duy nhất nhiệm vụ = diff range + skill://fe-kit/playbooks/review-diff.md
     └── không mang ghi chú của tác giả
 Báo cáo: Verdict đứng đầu, mỗi miss là 1 câu, xong rồi dừng.
@@ -175,22 +165,11 @@ Báo cáo: Verdict đứng đầu, mỗi miss là 1 câu, xong rồi dừng.
 ## Verify — chạy gì để chắc map đúng
 
 ```text
-python3 scripts/test_wording.py          85 test lexer/token diff (copy vs code)
-python3 scripts/test_variable_rename.py  đổi tên biến → deny, đổi copy → allow (test gate thật)
-python3 scripts/test_fe_gate.py          227 case hành vi gate (deny/allow, intent, conflict, file type, Bash ghi file, nhãn khai báo, dòng project rules, handoff)
-python3 scripts/test_bash_target.py      18 test Bash → file ghi (sed/perl -i, cp/mv, redirect trong quote)
-python3 scripts/test_handoff.py          13 test gate trước commit (thiếu file, thiếu section, approve, stale)
-python3 scripts/test_devin_gate.py       30 test gate Devin (inject, block, echo nhãn, bug repro, isolation)
-python3 scripts/test_yaml_subset.py      52 test tập con YAML
-python3 scripts/test_project_config.py   52 test luật dự án
-python3 scripts/test_review_check.py     25 test kiểm report
-python3 scripts/test_review_packages.py  25 test chia gói, gộp report, gộp lỗi trùng
-python3 scripts/test_review_record.py    15 test lưu, đọc review cũ
-python3 scripts/test_rule_copies.py      không câu luật nào bị chép sang file khác
-python3 scripts/test_versions.py         version giống nhau ở mọi manifest + CHANGELOG
-node --test extensions/fe-gate.test.ts   30 test extension omp: verdict, prompt, chặn edit, wording
+python3 scripts/review_lenses.py list --pass 1   7 lens pass 1 (6 checklist + audit); --pass 2 và --pass invariants cho nhóm khác
 cat skills/fe-kit/evals/triggers.json    16 query mẫu: should_trigger true/false — kiểm intent regex
 sh scripts/fe-gate.sh < event.json        chạy thật 1 event với payload giả
+bunx tsc --noEmit -p tsconfig.json        typecheck fixtures/ + extensions/
+bunx eslint fixtures --max-warnings 0     lint thư mục fixture
 claude --debug -p "review the diff"      rồi grep "Loading hooks from plugin: fe-kit" ~/.claude/debug/latest
 ```
 
