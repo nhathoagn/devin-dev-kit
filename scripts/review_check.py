@@ -88,6 +88,29 @@ def _reference_roots(scope):
     roots.append(_folder(cr.rsplit("/", 1)[0] if "/" in cr else ""))
     return [root for root in roots if root]
 
+def _import_context(root, diff_files):
+    """Repo files a diff file imports — legitimate context a lens may cite without a warning."""
+    pattern = re.compile(r'import[^;"\']*["\']([^"\']+)["\']')
+    context = set()
+    for path in diff_files:
+        full = os.path.join(root, path)
+        if not os.path.isfile(full):
+            continue
+        try:
+            with open(full, encoding="utf-8", errors="replace") as handle:
+                text = handle.read()
+        except OSError:
+            continue
+        base = os.path.dirname(path)
+        for spec in pattern.findall(text):
+            spec = spec.replace("\\", "/")
+            if spec.startswith("."):
+                resolved = os.path.normpath(os.path.join(base, spec)).replace("\\", "/")
+            else:
+                resolved = spec.lstrip("/")
+            if os.path.isfile(os.path.join(root, resolved)):
+                context.add(resolved)
+    return context
 
 def check(root, report_text, files):
     """Return (errors, warnings) for the report against the changed files."""
@@ -97,6 +120,7 @@ def check(root, report_text, files):
     diff_files = scope["files"]
     known = set(diff_files) | {item["path"] for item in scope["read"]}
     roots = _reference_roots(scope)
+    context = _import_context(root, diff_files)
     parts = sections(report_text)
 
     verdict = None
@@ -146,8 +170,8 @@ def check(root, report_text, files):
         count = _line_count(root, resolved)
         if start < 1 or last > count or last < start:
             errors.append("`%s:%s` is outside the file (%d lines)" % (path, start if not end else "%d-%s" % (start, end), count))
-        elif resolved not in known and not any(resolved.startswith(folder) for folder in roots):
-            warnings.append("`%s:%d` is outside the diff: check it is a caller the diff breaks" % (resolved, start))
+        elif resolved not in known and resolved not in context and not any(resolved.startswith(folder) for folder in roots):
+            warnings.append("`%s:%d` is outside the diff: check it is a caller the diff breaks or a file the diff imports" % (resolved, start))
     return errors, warnings
 
 

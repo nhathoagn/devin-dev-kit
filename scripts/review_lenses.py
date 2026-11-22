@@ -1,6 +1,6 @@
 """Split a diff review into lenses: one fresh reviewer per lens, in parallel.
 
-Each lens carries a `pass` field. Pass 1 lenses grade the diff itself: the six
+Each lens carries a `pass` field. Pass 1 lenses grade the diff itself: the eight
 checklist lenses plus `audit` (which applies `references/audit.md`). Pass 2
 lenses — `probe` and `invariant` — run only when a fix adds a new contract
 surface (a guard, validator, `Result` type, or signature); `correctness` and
@@ -21,9 +21,10 @@ brief: print the task brief of a no-item lens (audit, probe, coverage,
 regression, invariant).
 
 Each item of `references/REVIEW_CHECKLIST.md` and `references/review-checks.md`
-sits in exactly one lens, so the six item lenses cover the whole checklist with
-no item read twice and none missed. A lens reviewer may still report anything
-it sees; the split only guarantees coverage.
+sits in exactly one lens, so the eight item lenses cover the whole checklist with
+no item read twice and none missed (the `L1`-`L3` placeholder rows of the repo
+rules table are excluded by design — they are filled per-repo, not owned here).
+A lens reviewer may still report anything it sees; the split only guarantees coverage.
 """
 import argparse
 import re
@@ -34,7 +35,9 @@ LENSES = [
         "name": "hygiene",
         "title": "Vệ sinh diff",
         "pass": 1,
-        "items": ["S1", "S2", "S3", "S4", "S5", "S6", "F1", "F11"],
+        "items": ["S1", "S2", "S3", "S4", "S5", "S6", "R1", "R2", "R3", "R4",
+                  "R5", "R6", "R7", "R8", "DOC1", "DOC2", "DOC3", "DOC4", "DOC5",
+                  "F1", "F11"],
     },
     {
         "name": "correctness",
@@ -46,7 +49,21 @@ LENSES = [
         "name": "contract",
         "title": "Hợp đồng, caller, spec, test",
         "pass": [1, 2],
-        "items": ["C8", "F17", "F18", "F20"],
+        "items": ["C8", "TY1", "TY2", "TY3", "TY4", "TY5", "TY6", "TY7", "TY8", "TY9",
+                  "F17", "F18", "F20"],
+    },
+    {
+        "name": "security",
+        "title": "Bảo mật và input ngoài",
+        "pass": 1,
+        "items": ["SEC1", "SEC2", "SEC3", "SEC4", "SEC5", "SEC6", "SEC7", "SEC8",
+                  "SEC9", "SEC10"],
+    },
+    {
+        "name": "tests",
+        "title": "Chất lượng test",
+        "pass": 1,
+        "items": ["T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10", "T11"],
     },
     {
         "name": "structure",
@@ -191,9 +208,10 @@ def main(argv=None):
             lenses = [lens for lens in LENSES
                       if args.lens_pass == "all" or args.lens_pass in _lens_passes(lens)]
             for number, lens in enumerate(lenses, start=1):
+                items_text = " ".join(lens["items"]) or "-"
                 print("lens %d: %s (%s, pass %s) — items %s"
                       % (number, lens["name"], lens["title"],
-                         "+".join(_lens_passes(lens)), " ".join(lens["items"])))
+                         "+".join(_lens_passes(lens)), items_text))
             print("lenses: %d" % len(lenses))
             return 0
         if args.command == "brief":

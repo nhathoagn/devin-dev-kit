@@ -49,12 +49,16 @@ The questions the agent asked and the user's answers, one line each.
     - Q: Which caller breaks first if the response shape changes? A: <answer>
 ```
 
-End with the user's approval, written by the approve command, not by the agent:
+The user approves with the approve command; the stamp lives in `.fe-kit/handoff.approved`, a
+separate file the agent never writes and the commit gate reads:
 
 ```
 Confirmed-by: <name>
 Confirmed-at: <ISO timestamp>
 ```
+
+Keep `.fe-kit/handoff.approved` out of commits — it is local state, like a lock. A
+`Confirmed-by:`/`Confirmed-at:` stamp written inside `handoff.md` by an older version still counts.
 
 ## The Q&A
 
@@ -71,8 +75,8 @@ The agent does not approve its own handoff. After reading, the user runs:
 python3 "<plugin>/scripts/handoff.py" approve --root .
 ```
 
-The gate re-checks coverage and staleness on every commit. Editing a source file after approval
-invalidates it; ask the user to read the changed part and approve again.
+The gate re-checks coverage and staleness on every commit. Editing a source file or the handoff
+file itself after approval invalidates it; ask the user to read the changed part and approve again.
 
 ## Check and turn it off
 

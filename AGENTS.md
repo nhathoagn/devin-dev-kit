@@ -6,12 +6,14 @@ Chạy và báo **lệnh + exit code** cho từng cổng dưới đây. Một c�
 ```bash
 bunx tsc --noEmit -p tsconfig.json
 bunx eslint fixtures --max-warnings 0
+python3 scripts/test_review_lenses.py
+python3 scripts/test_review_check.py
 ```
 
-Repo hiện không có test suite — không chạy `bun test` làm cổng.
+Hai test Python là suite duy nhất của repo — không chạy `bun test` làm cổng.
 
 ## Review flow (`scripts/`)
-- Fan-out review: `python3 scripts/review_lenses.py list --pass 1` in danh sách lens pass 1 (6 checklist lens + `audit`); `--pass 2` in lens pass 2 (`correctness`, `contract`, `probe`, `invariant`); `--pass invariants` in `coverage` + `regression` cho playbook `review-invariants.md`.
+- Fan-out review: `python3 scripts/review_lenses.py list --pass 1` in danh sách lens pass 1 (8 checklist lens + `audit` đi `references/audit.md`); `--pass 2` in lens pass 2 (`correctness`, `contract`, `probe`, `invariant`); `--pass invariants` in `coverage` + `regression` cho playbook `review-invariants.md`.
 - Một lens một reviewer. Report ghi `Lens: <name>` rồi merge bằng `python3 scripts/review_packages.py merge --root <repo> --lens <a,b,…> --out <file> <reports>`.
 - Report cuối phải qua `python3 scripts/review_check.py --root <repo> --report <file>`.
 

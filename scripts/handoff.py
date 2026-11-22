@@ -12,6 +12,7 @@ import subprocess
 import sys
 
 HANDOFF_PATH = ".fe-kit/handoff.md"
+APPROVED_PATH = ".fe-kit/handoff.approved"
 SOURCE_RE = re.compile(
     r"\.(?:tsx?|jsx?|mjs|cjs|vue|svelte|astro|mdx|py|go|rs|java|kt|kts|rb|php|cs|swift)$",
     re.I,
@@ -90,6 +91,19 @@ def stale_files(root, files, confirmed_at):
     return stale
 
 
+def _approval_text(root):
+    path = os.path.join(root, APPROVED_PATH)
+    try:
+        with open(path, encoding="utf-8", errors="replace") as handle:
+            text = handle.read()
+            if text.strip():
+                return text
+    except OSError:
+        pass
+    # A stamp written inside handoff.md by an older version still counts.
+    return read_handoff(root)
+
+
 def problems(root, files=None, require_confirmation=True):
     files = staged_files(root) if files is None else files
     sources = source_files(files)
@@ -107,12 +121,13 @@ def problems(root, files=None, require_confirmation=True):
             found.append("`%s` is not named in the handoff" % path)
     if not require_confirmation:
         return found
-    by = CONFIRMED_BY_RE.search(text)
-    at = CONFIRMED_AT_RE.search(text)
+    approval = _approval_text(root)
+    by = CONFIRMED_BY_RE.search(approval)
+    at = CONFIRMED_AT_RE.search(approval)
     if not by:
-        found.append("`Confirmed-by:` is missing; ask the user to approve the handoff")
+        found.append("`%s` has no `Confirmed-by:`; ask the user to approve the handoff" % APPROVED_PATH)
     if not at:
-        found.append("`Confirmed-at:` is missing; ask the user to approve the handoff")
+        found.append("`%s` has no `Confirmed-at:`; ask the user to approve the handoff" % APPROVED_PATH)
     else:
         confirmed_at = parse_time(at.group(1))
         if confirmed_at is None:
@@ -121,6 +136,13 @@ def problems(root, files=None, require_confirmation=True):
             stale = stale_files(root, sources, confirmed_at)
             if stale:
                 found.append("approval is older than `%s`; ask the user to approve again" % stale[0])
+            handoff_mtime = None
+            try:
+                handoff_mtime = os.path.getmtime(os.path.join(root, HANDOFF_PATH))
+            except OSError:
+                pass
+            if handoff_mtime is not None and handoff_mtime - confirmed_at.timestamp() > STALE_SECONDS:
+                found.append("`%s` changed after approval; ask the user to approve again" % HANDOFF_PATH)
     return found
 
 
@@ -128,27 +150,22 @@ def approval_name(root):
     return run_git(root, "config", "user.name").strip() or os.environ.get("USER") or os.environ.get("USERNAME") or "user"
 
 
-def stamp(text, by):
+def stamp(by):
     now = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-    lines = [line for line in text.splitlines() if not re.match(r"^Confirmed-(?:by|at):", line)]
-    while lines and not lines[-1].strip():
-        lines.pop()
-    lines += ["", "Confirmed-by: %s" % by, "Confirmed-at: %s" % now, ""]
-    return "\n".join(lines)
+    return "Confirmed-by: %s\nConfirmed-at: %s\n" % (by, now)
 
 
 def approve(root, by=None):
     found = problems(root, require_confirmation=False)
     if found:
         return found
-    path = os.path.join(root, HANDOFF_PATH)
-    text = read_handoff(root)
+    path = os.path.join(root, APPROVED_PATH)
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as handle:
-            handle.write(stamp(text, by or approval_name(root)))
+            handle.write(stamp(by or approval_name(root)))
     except OSError as exc:
-        return ["cannot write `%s`: %s" % (HANDOFF_PATH, exc)]
+        return ["cannot write `%s`: %s" % (APPROVED_PATH, exc)]
     return []
 
 

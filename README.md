@@ -219,14 +219,15 @@ Có sẵn `presets/legacy-rewrite/` cho dự án viết lại hệ cũ: giống 
 Sau review, `scripts/review_check.py` kiểm report: câu verdict, mức của từng lỗi, `file:dòng` có thật,
 và mục `Nguồn và độ phủ` nêu đủ file trong diff.
 
-Diff đến 10 file: `scripts/review_lenses.py list --pass 1` chia diff thành bảy góc nhìn — sáu chấm
-checklist (vệ sinh diff, đúng biên và luồng, hợp đồng/caller/spec/test, kiến trúc và dùng lại, tên và
-mở rộng, tải và hiệu năng) cộng `audit` đi `references/audit.md`; `list --pass 2` in `correctness`,
-`contract`, `probe`, `invariant` chỉ chạy sau fix tạo mặt contract mới; mỗi lens
+Diff đến 10 file: `scripts/review_lenses.py list --pass 1` chia diff thành chín góc nhìn — tám chấm
+checklist (vệ sinh diff, đúng biên và luồng, hợp đồng/caller/spec/test, bảo mật, chất lượng test,
+kiến trúc và dùng lại, tên và mở rộng, tải và hiệu năng) cộng `audit` đi `references/audit.md`;
+`list --pass 2` in `correctness`, `contract`, `probe`, `invariant` chỉ chạy sau fix tạo mặt contract
+mới; mỗi lens
 một reviewer chạy song song, mỗi item của checklist thuộc đúng một lens nên không mục nào bị sót hay soi
 hai lần. Diff trên 10 file: `scripts/review_packages.py split` chia gói (tối đa 15 file), mỗi gói một
-reviewer chạy song song, cộng thêm một reviewer `--lens contract` trên toàn range cho caller, spec, và
-test bắc cầu giữa các gói. `review_packages.py merge` gộp report: hai lens thấy cùng một `file:dòng`
+reviewer chạy song song, cộng thêm reviewer `--lens contract` và `--lens audit` trên toàn range cho
+caller, spec, test và flow xuyên gói. `review_packages.py merge` gộp report: hai lens thấy cùng một `file:dòng`
 gom thành một đoạn ghi cả hai nguồn. Sau khi sửa xong một lượt, một reviewer mới kiểm lại từng finding
 ở HEAD; finding còn đúng thì quay lại sửa một lần. Review lại: `scripts/review_record.py save` lưu report
 và sha vào `.fe-kit/reviews/<branch>.md`; lần sau `review_record.py last` cho sha đó, reviewer chỉ đọc
@@ -294,7 +295,7 @@ scripts/project_config.py  file thay đổi → luật dự án cần đọc (.f
 scripts/review_check.py  kiểm report review-diff trước khi gửi
 scripts/review_packages.py  chia diff lớn thành gói, gộp report các gói
 scripts/review_record.py lưu review theo nhánh, đọc lại cho lần sau
-scripts/review_lenses.py  chia review thành 11 góc nhìn theo pass (pass 1: 6 lens checklist + audit; pass 2: correctness, contract, probe, invariant; invariants: coverage, regression), một reviewer mỗi lens
+scripts/review_lenses.py  chia review thành 13 góc nhìn theo pass (pass 1: 8 lens checklist + audit; pass 2: correctness, contract, probe, invariant; invariants: coverage, regression), một reviewer mỗi lens
 scripts/yaml_subset.py   đọc tập con YAML, không cần pyyaml
 presets/                 luật theo loại dự án (legacy-rewrite)
 extensions/fe-gate.ts    adapter omp

@@ -40,9 +40,9 @@ plugin-architecture
 │   ├── yaml_subset.py       đọc tập con YAML bằng thư viện chuẩn; cú pháp ngoài tập con → YamlError kèm số dòng
 │   ├── review_check.py      kiểm report review-diff: verdict, mức lỗi, file:dòng có thật, mục Nguồn và độ phủ
 │   ├── review_packages.py   split: diff trên 10 file → gói tối đa 15 file, mỗi gói một reviewer; merge: gộp report các gói/lens (verdict nặng nhất, cùng file:dòng gom một đoạn)
-│   ├── review_lenses.py    list [--pass 1|2|invariants]: pass 1 = 6 lens checklist + audit (đi audit.md); pass 2 = correctness, contract, probe, invariant; items/brief <lens>: mã item hoặc task brief
+│   ├── review_lenses.py    list [--pass 1|2|invariants]: pass 1 = 8 lens checklist + audit (đi audit.md); pass 2 = correctness, contract, probe, invariant; items/brief <lens>: mã item hoặc task brief
 │   ├── review_record.py     save: lưu report + sha vào .fe-kit/reviews/<branch>.md; last: in sha và lỗi cũ cho lần review sau
-│   ├── test_* đã gỡ (62310ca) — repo hiện không có test suite
+│   ├── test_review_lenses.py, test_review_check.py   suite unittest duy nhất (các test_* cũ đã gỡ ở 62310ca)
 ├── fixtures/              input cố tình lỗi để kiểm review tool; không phải code sản phẩm, không import vào đâu
 │   ├── review-seed.ts     module seed chứa các lớp lỗi để soi bằng lens
 │   └── fixed/             bản đã sửa: canonical, delivery, polling, pricing, schema, stock
