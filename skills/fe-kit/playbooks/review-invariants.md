@@ -75,7 +75,7 @@ Nhóm lỗi lặp từ 2 lần trở lên phải biến thành **cơ chế chặ
 
 ## Bảo trì playbook
 
-Mỗi lần sửa file này hoặc `scripts/review_lenses.py`: chạy lại trên module đối chứng có lỗi biết trước (`extensions/nested-if.ts`, các lớp G1–G6) và xác nhận nó vẫn tìm ra. Một playbook không tự bắt được lỗi đã biết thì không dùng để kết luận được.
+Mỗi lần sửa file này hoặc `scripts/review_lenses.py`: chạy lại trên một module đối chứng có lỗi **biết trước** (file cố tình chứa các lớp lỗi G1–G6, để ngoài thư mục code sản phẩm) và xác nhận playbook vẫn tìm ra chúng. Một playbook không tự bắt được lỗi đã biết thì không dùng để kết luận được.
 
 ## Hai prompt dùng trực tiếp
 

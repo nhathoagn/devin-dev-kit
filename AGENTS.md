@@ -25,5 +25,5 @@ bun test extensions/checkout
 - Mỗi fix một commit: `fix(checkout): <F-xxx> <tóm tắt>`.
 
 ## Không làm
-- Không import `extensions/nested-if.ts` — đó là fixture đối chứng của tool review, không phải code sản phẩm.
+- Không import file fixture (file cố tình chứa lỗi để kiểm thử tool review). Fixture sống ngoài `extensions/`, không nằm cạnh code sản phẩm.
 - Không thêm eviction cho `receipts`/`settled` để "giảm bộ nhớ": evict receipt làm replay trừ kho lần hai.

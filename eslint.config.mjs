@@ -23,7 +23,7 @@ export default tseslint.config(
       ],
       "no-restricted-imports": [
         "error",
-        { patterns: [{ group: ["**/nested-if*"], message: "Fixture đối chứng, không import." }] },
+        { patterns: [{ group: ["**/*.fixture", "**/*.fixture.ts"], message: "Fixture kiểm thử tool review, không import." }] },
       ],
     },
   },

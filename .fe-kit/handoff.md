@@ -23,9 +23,8 @@ Biên quyết định hành vi: `total ≥ 1 000 000` (miễn phí vùng), `≥ 
 - `extensions/checkout/checkout.ts` — `checkout(input, channel, {store, now})`: parse → coupon → `representable` → `store.attempt` → dịch `AttemptOutcome` sang `CheckoutResult`. `now()` được inject để `createdAt` tất định.
 - `extensions/checkout/checkout.test.ts` — 58 test: 32 test hành vi, 5 property test fast-check, 4 test contract có `Promise.all` đua, 17 test tham số hoá.
 - `extensions/checkout/SPEC.md` — hợp đồng: `INV-01…09`, threat model, danh tính đơn, rubric severity, điều kiện dừng.
-- `extensions/nested-if.ts` — **fixture đối chứng** cho tool review (bản cũ 640 dòng, không phải code sản phẩm, không được import).
 - `tsconfig.json` — `include` chỉ `extensions/checkout/**`; `fe-gate.ts` chưa qua `--strict` với các cờ này nên nằm ngoài.
-- `eslint.config.mjs` — `strictTypeChecked` + `max-depth 3`, `complexity 10`, `max-lines-per-function 60`, cấm `for...in`, cấm toán tử `in`, cấm import `nested-if*`, cấm `JSON.stringify` ngoài `canonical.ts`. Test được nới 3 rule (độ dài, `require-await`, floating promise).
+- `eslint.config.mjs` — `strictTypeChecked` + `max-depth 3`, `complexity 10`, `max-lines-per-function 60`, cấm `for...in`, cấm toán tử `in`, cấm import fixture, cấm `JSON.stringify` ngoài `canonical.ts`. Test được nới 3 rule (độ dài, `require-await`, floating promise).
 - `stryker.config.json` — mutate 3 file logic, command runner `bun test extensions/checkout`, break 80.
 - `AGENTS.md` — cổng bắt buộc + luật riêng cho module checkout + luật sửa lỗi.
 - `scripts/review_lenses.py` — thêm 2 lens `coverage`, `regression` (chế độ invariants) → 10 lens.
@@ -72,4 +71,4 @@ Người giữ state: `MemoryCheckoutStore` giữ `stock` và `settled`; `checko
 - Q: Lệnh nào là bằng chứng một fix về trừ kho/tiền là đúng? A: `bun run gates` — gồm cả mutation ≥ 80%, vì test xanh vẫn có thể là test rỗng.
 
 Confirmed-by: nhathoang
-Confirmed-at: 2026-11-22T09:24:13Z
+Confirmed-at: 2026-11-22T09:26:01Z
