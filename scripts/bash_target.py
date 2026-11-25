@@ -26,6 +26,7 @@ SUBSHELL_RE = re.compile(
     r"(?:^|[;&|\n])\s*[({]|[<>$]\(|(?<![\w.-])(?:pushd|popd|eval|source)(?![\w.-])|(?:^|[;&|\n])\s*\.\s"
 )
 CHDIR_RE = re.compile(r"\bchdir\s*\(|\bcwd\s*=")
+LINK_RE = re.compile(r"\bmklink\b|\bln\s+-\w*s|-ItemType\s+['\"]?(?:Junction|SymbolicLink)|\bsubst\b", re.I)
 CD_WORD_RE = re.compile(r"(?<![\w.-])cd(?![\w.-])")
 HEREDOC_START_RE = re.compile(r"<<-?")
 HEREDOC_RE = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_]\w*)\1")
@@ -67,6 +68,8 @@ def dir_at(text, pos):
     cds = [match for match in BASH_CD_RE.finditer(text) if match.start() < pos]
     if SUBSHELL_RE.search(before) or len(cds) > 1 or len(CD_WORD_RE.findall(before)) != len(cds):
         return "", False
+    if cds and ("CDPATH" in text or os.environ.get("CDPATH")):
+        return "", False
     if not cds:
         return "", True
     folder = local_path(cds[0].group(1))
@@ -96,7 +99,7 @@ def product_target(target, folder, known, cwd):
     full = resolved_path(target, folder, known, cwd)
     if full is None:
         return target
-    if gate_scope is None or gate_scope.in_scope(full):
+    if gate_scope is None or gate_scope.in_scope(full, cwd):
         return full
     return ""
 
@@ -125,24 +128,24 @@ def strip_data_heredocs(text):
         delimiter = match.group(2)
     return "\n".join(kept)
 
-SHELL_STATE_VARIABLES = {"PWD", "OLDPWD"}
-
-def expand_environment(target):
-    """Put in the value of an environment variable the shell does not change while it runs.
-    PWD and OLDPWD follow each cd, so they stay unknown, and so does any unset variable."""
-    def value(match):
-        name = match.group(1) or match.group(2)
-        if name in SHELL_STATE_VARIABLES or name not in os.environ:
-            return match.group(0)
-        return os.environ[name].replace("\\", "/")
-    return re.sub(r"\$\{(\w+)\}|\$(\w+)", value, target)
+def reassigned(command, name):
+    """True when the command also sets `name` in a way the assignment pattern does not read."""
+    word = re.escape(name)
+    return bool(re.search(
+        r"\b(?:for|select)\s+" + word + r"\b|\b(?:read|readarray|mapfile|getopts)\b[^;&|\n]*\b" + word + r"\b"
+        r"|\bprintf\s+-v\s*" + word + r"\b|\b(?:declare|typeset|local)\b[^;&|\n]*\b" + word + r"\b",
+        command))
 
 def expand_variables(command):
+    """Put in each variable the command assigns once with a plain value. Any other variable stays,
+    so a target that still holds `$` counts as built at run time."""
     values = {}
+    counts = {}
     for match in BASH_ASSIGN_RE.finditer(command):
         values[match.group(1)] = next(value for value in match.groups()[1:] if value is not None)
+        counts[match.group(1)] = counts.get(match.group(1), 0) + 1
     for name_, value in values.items():
-        if "$" in value:
+        if "$" in value or counts[name_] > 1 or reassigned(command, name_):
             continue
         command = re.sub(r"\$\{" + name_ + r"\}|\$" + name_ + r"\b", lambda _: value, command)
         if len(command) > COMMAND_MAX_BYTES:
@@ -353,7 +356,7 @@ def copy_files(tokens):
         sources = positional[:-1]
         if FRONTEND_RE.search(destination):
             targets = [destination]
-        elif name == "cp":
+        else:
             targets = [os.path.join(destination, os.path.basename(path))
                        for path in sources if FRONTEND_RE.search(path)]
     dynamic = any("$" in path for path in positional)
@@ -430,15 +433,18 @@ def write_target_in(text, cwd, run_dir=None):
     calls, call_dynamic = write_call_targets(text, ranges)
     targets += inplace + calls
     dynamic = inplace_dynamic or call_dynamic
+    # A command that makes a junction or symlink can point any path at product code before it writes.
+    links = LINK_RE.search(text)
     for target, pos in targets:
-        target = expand_environment(target)
         if not FRONTEND_RE.search(target):
             if BUILT_TARGET_RE.search(target):
                 return "(write to a path built at run time: %s).ts" % target
             continue
-        hit = product_target(target, *base_at(pos), cwd)
+        hit = target if links else product_target(target, *base_at(pos), cwd)
         if hit:
             return hit
+    if dynamic and links:
+        return "(script that writes through a new link).ts"
     return dynamic_target(text, base_at, cwd) if dynamic else ""
 
 def script_sources(command, cwd):

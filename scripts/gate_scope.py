@@ -20,11 +20,25 @@ import project_config
 CONFIG_SUFFIX = project_config.CONFIG_PATH
 
 
+def _is_repo(folder):
+    """A folder whose `.git` is a git dir with HEAD, or a gitfile. Any other `.git` is not a repo."""
+    marker = os.path.join(folder, ".git")
+    if os.path.isdir(marker):
+        return os.path.isfile(os.path.join(marker, "HEAD"))
+    if os.path.isfile(marker):
+        try:
+            with open(marker, encoding="utf-8", errors="ignore") as handle:
+                return handle.readline().startswith("gitdir:")
+        except OSError:
+            return False
+    return False
+
+
 @functools.lru_cache(maxsize=None)
 def _repo_root_of_dir(folder):
     current = folder
     while True:
-        if os.path.isdir(current) and os.path.exists(os.path.join(current, ".git")):
+        if os.path.isdir(current) and _is_repo(current):
             return current
         parent = os.path.dirname(current)
         if parent == current:
@@ -129,14 +143,32 @@ def _verdict(root, full_path, needs_config):
     return not scope or any(project_config.matches(_fold(pattern), _fold(inner)) for pattern in scope)
 
 
-def in_scope(full_path):
-    # realpath follows junctions, symlinks and 8.3 names, so another name for a folder cannot hide it.
+def _inside(path, folder):
+    path, folder = _fold(os.path.normpath(path)), _fold(os.path.normpath(folder))
+    return path == folder or path.startswith(folder.rstrip("\\/") + os.sep)
+
+
+def _project_repo(project):
+    anchor = os.environ.get("CLAUDE_PROJECT_DIR") or os.environ.get("DEVIN_PROJECT_DIR") or project
+    return repo_root(os.path.realpath(anchor)) if anchor else None
+
+
+def in_scope(full_path, project=None):
+    """True when `full_path` is product code. `project` is the hook cwd; the project dir from the
+    environment wins over it.
+
+    The innermost repo decides, and its default with no config is "every code file". A repo at or
+    below the project repo cannot narrow it: each of them gives the same default. A repo above the
+    project repo has a say only through a committed config, so a folder of projects with no config,
+    such as D:/code, never turns the gate on for its projects.
+    """
     full_path = os.path.realpath(full_path)
     roots = _repo_chain(full_path)
     if not roots:
         return False
-    if _verdict(roots[0], full_path, needs_config=False):
-        return True
-    # A repo inside another repo cannot narrow the outer repo: an outer repo whose committed config
-    # calls the file product code keeps the gate on.
-    return any(_verdict(root, full_path, needs_config=True) for root in roots[1:])
+    project_root = _project_repo(project)
+    for index, root in enumerate(roots):
+        governs = index == 0 or (project_root is not None and _inside(root, project_root))
+        if _verdict(root, full_path, needs_config=not governs):
+            return True
+    return False

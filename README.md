@@ -51,7 +51,9 @@ Gate chỉ chặn code sản phẩm: file trong git repo, khớp `scope` của `
 gần file nhất (chưa khai `scope` thì mọi file code), không khớp `exclude`. Monorepo đặt config
 riêng trong từng package; glob tính từ thư mục chứa config đó. Gate đọc config và danh sách
 file từ commit `HEAD`, không đọc file trên đĩa: sửa `scope`/`exclude` chỉ có hiệu lực sau khi commit.
-Đường dẫn được giải qua junction/symlink; một repo con tạo bên trong vùng `scope` không tắt được gate. File ngoài mọi git repo
+Đường dẫn được giải qua junction/symlink; một repo con tạo bên trong dự án không tắt được gate,
+kể cả khi dự án chưa có config. Bash chỉ thế biến gán ngay trong lệnh; ghi vào `$HOME/…` hay biến
+môi trường khác cũng phải khai nhãn. File ngoài mọi git repo
 (scratchpad) không bị chặn. Script evidence trong repo không bị chặn khi nằm ngoài `scope`.
 Lệnh Bash ghi file code mà gate không biết chắc đường dẫn (glob, regex, subshell, `pushd`,
 hai `cd`, `cd $X`), hoặc ghi vào file đích còn biến chưa biết giá trị (`> "$F"`), vẫn bị chặn. Mỗi pattern `scope` phải khớp ít nhất một file git đang track;

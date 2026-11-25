@@ -419,7 +419,7 @@ def patch_target():
         if not GATED_EXT_RE.search(candidate):
             continue
         full = candidate if os.path.isabs(candidate) or not cwd else os.path.join(cwd, candidate)
-        if gate_scope is None or gate_scope.in_scope(full):
+        if gate_scope is None or gate_scope.in_scope(full, cwd):
             return full
     return ""
 
@@ -468,7 +468,7 @@ if tool_name == "apply_patch" and not path:
 gated_view = (
     tool_name in ("edit", "write", "apply_patch", "exec")
     and GATED_EXT_RE.search(path)
-    and (tool_name == "exec" or gate_scope is None or gate_scope.in_scope(full_path))
+    and (tool_name == "exec" or gate_scope is None or gate_scope.in_scope(full_path, cwd))
     and not wording_exempt()
     and not conflict_lines_only()
     and not conflict_merge_only()

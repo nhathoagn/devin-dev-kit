@@ -709,7 +709,7 @@ def wording_exempt():
 gated_view = (
     tool_name in ("Write", "Edit", "MultiEdit", "Bash")
     and GATED_EXT_RE.search(path)
-    and (tool_name == "Bash" or gate_scope is None or gate_scope.in_scope(full_path))
+    and (tool_name == "Bash" or gate_scope is None or gate_scope.in_scope(full_path, cwd))
     and not wording_exempt()
     and not conflict_lines_only()
     and not conflict_merge_only()
