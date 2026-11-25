@@ -331,6 +331,22 @@ CODEMAP.md               bản đồ code: module nào gọi module nào
 | [`CODEMAP.md`](CODEMAP.md) | Bản đồ kiến trúc plugin, ai gọi ai |
 | [`skills/fe-kit/CHANGELOG.md`](skills/fe-kit/CHANGELOG.md) | Vì sao mỗi rule tồn tại — kèm sự cố thật |
 
+## Sách nền cho người đọc code
+
+Checklist trong skill sinh ra từ các cuốn này — intern/fresher đọc để hiểu vì sao reviewer flag, không chỉ nghe verdict.
+
+| Mức | Sách | Skill dùng ở đâu |
+|---|---|---|
+| Fresher | *The Art of Readable Code* — Boswell & Foucher | `references/readability.md`: Time to Understand, trace test, naming §5 |
+| Fresher | *Clean Code* — Robert C. Martin | N1–N5, SM1–SM3: tên, hàm nhỏ, DRY |
+| Fresher | *Code Complete* (2nd ed) — Steve McConnell | construction nói chung; nền trước khi đọc hai cuốn trên |
+| Junior/Mid | *Refactoring* (2nd ed) — Martin Fowler | `references/fowler-checklist.md` + `references/smells-checklist.md` — toàn bộ |
+| Junior/Mid | *A Philosophy of Software Design* — John Ousterhout | `references/posd-checklist.md`: module depth, pull complexity down |
+| Junior/Mid | *Tidy First?* — Kent Beck | `references/tidy-checklist.md`: tidy tách khỏi behavior |
+| Mid | *The Pragmatic Programmer* (20th anniv.) — Hunt & Thomas | orthogonality (D4), tracer bullets; đọc để có khung, checklist không đếm lại |
+| Mid | *Unit Testing* — Vladimir Khorikov | `references/test-checklist.md`: resistance to refactoring |
+| Mid | *SQL Antipatterns* — Bill Karwin | nền cho `references/performance-logic.md` §1; depth thuộc skill `database-optimizer` |
+
 ## License
 
 MIT

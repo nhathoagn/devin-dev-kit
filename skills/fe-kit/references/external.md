@@ -25,6 +25,9 @@ Fetch commands. Run from a temp dir, never inside the consumer repo.
 - Vercel rows: `npx skills add vercel-labs/agent-skills --skill <dir>`. Use `react-best-practices` for `vercel-react-best-practices`, `composition-patterns` for `vercel-composition-patterns`, `web-design-guidelines` for `web-design-guidelines`, `react-native-skills` for `vercel-react-native-skills`, `react-view-transitions` for `vercel-react-view-transitions`.
 - `ui-ux-pro-max`: `npx skills add nextlevelbuilder/ui-ux-pro-max-skill --skill ui-ux-pro-max`. If that fails, `git clone --depth 1 https://github.com/nextlevelbuilder/ui-ux-pro-max-skill` into a temp dir and read its `SKILL.md`.
 - Matt Pocock rows: `npx skills add mattpocock/skills --skill <name>`, where `<name>` is the skill name in the Match table (`diagnosing-bugs`, `tdd`, `codebase-design`, `domain-modeling`, `improve-codebase-architecture`, `grill-with-docs`, `prototype`, `research`).
+- Addy Osmani's agent-skills: `npx skills add addyosmani/agent-skills --skill <name>`, where `<name>` is `performance-optimization` or `code-simplification`.
+- `database-optimizer`: `npx skills add jeffallan/claude-skills --skill database-optimizer`. If that fails, `git clone --depth 1 https://github.com/jeffallan/claude-skills` into a temp dir and read `skills/database-optimizer/SKILL.md`.
+- `backend-performance-review`: `npx skills add Sanoy24/backend-performance-review --skill backend-performance-review`. If that fails, `git clone --depth 1 https://github.com/Sanoy24/backend-performance-review` into a temp dir and read `skills/backend-performance-review/SKILL.md`.
 
 Read the downloaded `SKILL.md` and follow its steps. Do not copy it into the consumer repo. Do not run its scripts unless its own steps require it. If the fetch fails, write `install failed` under Departures / Notes. Name the skill and the error.
 
@@ -57,6 +60,10 @@ On a review, take the finding only. Do not write `GLOSSARY.md`, an ADR, or an HT
 | An architecture review or refactor asks where the codebase should get deeper or simpler | `improve-codebase-architecture` |
 | The request is ambiguous enough that the Architecture or Reuse Decision cannot be filled | `grill-with-docs` |
 | A state, interaction, or layout question must be answered before the real build | `prototype` |
+| Server-side or job performance beyond what `references/performance-logic.md` names: profiling evidence, workload classification, priority matrix | `backend-performance-review` |
+| A slow query, a missing index, or a query plan that `references/performance-logic.md` §1 flags but cannot fix | `database-optimizer` |
+| A perf anti-pattern fix pattern (memoization misuse, unbounded fan-out, sync blocking) across languages | `performance-optimization` |
+| The task is to simplify working code without changing behavior — nesting, long functions, clever expressions the trace test in `references/readability.md` flagged | `code-simplification` |
 | The task needs a fact from primary documentation or source outside this repo | `research` |
 
 These URLs name the skills. They are not read paths.
@@ -66,5 +73,12 @@ https://www.skills.sh/vercel-labs/agent-skills
 https://github.com/nextlevelbuilder/ui-ux-pro-max-skill
 
 https://github.com/mattpocock/skills
+
+https://github.com/addyosmani/agent-skills
+
+https://github.com/jeffallan/claude-skills
+
+https://github.com/Sanoy24/backend-performance-review
+
 
 Deploy, Vercel CLI, Vercel cost, and writing-style skills are in the catalog. Do not open them from this plugin.

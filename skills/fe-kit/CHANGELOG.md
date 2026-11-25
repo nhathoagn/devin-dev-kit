@@ -2,6 +2,43 @@
 
 
 
+## 1.42.0
+
+The kit verified readability at review time but had no authoring rule for the actual goal: flat, boring code a junior developer can maintain. `readability.md` measures after the fact; nothing told the agent to write flat in the first place.
+
+- `references/code-quality.md` gains §"Flat by default" — the authoring-side rules, read before writing code: keep one action's logic visible in one place (inline a once-used helper that only moves lines out of sight), boring constructs over clever ones (plain loop over `reduce` pipeline, lookup object over nested ternary), nesting depth ≤ 2 in a handler with guard clauses, no wrapper component that adds nothing, state derived at the read site instead of synced in effects, linear top-to-bottom flow, small local duplication beats premature abstraction, and no mechanism built "for later" without a caller today.
+- `references/readability.md` intro reframed: it is the review-side verification of the flatness goal; the shape is decided at writing time in `code-quality.md` §"Flat by default".
+- Version 1.42.0 in `.claude-plugin/plugin.json`, `.devin-plugin/plugin.json`, `package.json`, and both places in `marketplace.json`.
+
+## 1.41.1
+
+- `README.md` gains "Sách nền cho người đọc code": nine books mapped by reader level (fresher → mid) to the checklist or reference they back — *The Art of Readable Code* → `readability.md`, Fowler → fowler/smells checklists, Ousterhout → posd, Beck → tidy, Khorikov → test-checklist, Karwin → performance-logic §1; *Clean Code*, *Code Complete*, *The Pragmatic Programmer* listed as foundation whose content already has owners in the checklist. Target audience: the intern/fresher the trace test in `references/readability.md` is written for.
+- Version 1.41.1 in `.claude-plugin/plugin.json`, `.devin-plugin/plugin.json`, `package.json`, and both places in `marketplace.json`.
+
+## 1.41.0
+
+The kit's external coverage stopped at UI skills (Vercel, ui-ux-pro-max) and Matt Pocock's workflow skills; nothing served server-side performance or behavior-preserving simplification. Readability had no book backing its naming detail.
+
+- `references/external.md` gains four Match rows and fetch commands: `backend-performance-review` (Sanoy24 — evidence-based backend perf, workload classification, priority matrix), `database-optimizer` (jeffallan/claude-skills — EXPLAIN ANALYZE, index strategy) for what `references/performance-logic.md` §1 flags but cannot fix, `performance-optimization` and `code-simplification` (addyosmani/agent-skills — perf anti-pattern fixes, behavior-preserving simplification the trace test flags).
+- `references/readability.md` gains Boswell & Foucher's *The Art of Readable Code*: Time to Understand as the file's named metric, plus falsifiable naming shapes (units in the name — `timeoutSecs`, specific verbs over `get`, name length follows scope size) in §5, and the table-driven lookup over long `if`/`else if` chains in §4. Count-once cross-refs with N1/SM1/O14.
+- Version 1.41.0 in `.claude-plugin/plugin.json`, `.devin-plugin/plugin.json`, `package.json`, and both places in `marketplace.json`.
+
+## 1.40.0
+
+"Extensibility" in `references/audit.md` measures the cost of a future change (how many files a new enum touches). It never measured whether a new hire can trace a flow: too many layers, forwarding wrappers, and logic nested behind indirection are invisible to every existing checklist. Fowler/POSD score structure; none asks the fresher question.
+
+- New `references/readability.md`: the trace test (count file hops for one primary action end to end, classify each hop as legible or hidden, write the trace in the report), grepability (runtime-built module/event names, re-export chains), layer depth (every layer must earn its hop), explicitness over cleverness (`reduce` with multi-field accumulator, nested ternaries, bare regex, sentinel `null`/`""` carrying silent meaning), and domain vocabulary (one concept, one name — F21 counts once). Shape mirrors `performance-logic.md`.
+- `playbooks/review-diff.md` step 3: when the diff adds a layer, a wrapper, a dispatch path, or a second name for one concept, the reviewer also reads `references/readability.md` and writes the trace test for the primary action in scope.
+- Version 1.40.0 in `.claude-plugin/plugin.json`, `.devin-plugin/plugin.json`, `package.json`, and both places in `marketplace.json`.
+
+## 1.39.0
+
+The performance lens (P1–P7) was language-agnostic but shallow: seven items detect gross violations without saying how logic outside the UI should be fixed or measured. UI perf had a dedicated reference (`performance.md`); business logic had none.
+
+- New `references/performance-logic.md`: priority-ordered checks for data layer (pagination, column selection, aggregation in the query, index use), concurrency (fan-out caps, independent awaits, locks across external calls), domain computation (loop-invariant hoisting, lookup scans, allocation on hot paths), batch/jobs (batch sizing, streaming, checkpointing), caching discipline, and measurement (before/after timing at a stated input size) — mirroring the shape of `references/performance.md`, including an anti-pattern list and rules.
+- `playbooks/review-diff.md` step 3: when the walk includes P1–P7 and the diff touches logic outside the UI (service, job, use-case handler, data access), the reviewer also reads and applies `references/performance-logic.md`.
+- Version 1.39.0 in `.claude-plugin/plugin.json`, `.devin-plugin/plugin.json`, `package.json`, and both places in `marketplace.json`.
+
 ## 1.38.3
 
 The fan-out review ran after every edit, even when the user did not ask for one. Review now runs only when the user asks.

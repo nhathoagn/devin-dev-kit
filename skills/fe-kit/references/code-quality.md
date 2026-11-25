@@ -115,6 +115,19 @@ Props of a shared component
 - A new prop that only adds an `if/else` around existing output is a finding. Use the existing slot (`children`, `body`) or a variant.
 - Before you change a shared component for one screen, prove the current behavior is wrong. Do not rewrite code that already works (a `messages.map` replaced by a `join`).
 
+## Flat by default
+
+The target maintainer is a junior developer who does not know the project. Write code that person can fix without a walkthrough. Boring is the goal. `references/readability.md` verifies this at review; this section is where the shape is decided, at writing time.
+
+- Keep the logic of one action visible in one place. Split a function only when a part hides a named rule worth its own name. A helper used once that just moves lines out of sight makes the reader jump files for nothing — write it inline.
+- Prefer boring constructs: a plain loop over a chained `reduce`/`flatMap` pipeline; a lookup object over a nested ternary; sequential top-to-bottom steps over a pipeline of tiny transforms. If a construct needs a second read to be understood, use the plainer one.
+- Nesting depth at most 2 in a handler. Use guard clauses and early returns so the normal path lies flat at the top level. The special case returns; the happy path never indents deep.
+- Do not wrap a component in another component that adds nothing (no prop transformation, no boundary, no layout of its own). Compose in place. The JSX tree should read like the rendered output: what you see in the file is what renders.
+- Keep state visible: derive values at the read site during render. Do not sync derived values into separate state or mutate them in effects — a junior tracing a wrong value should find it where it is shown, not in an effect two files up.
+- Keep the flow linear. One action reads top to bottom; the reader never holds more than a couple of pending contexts in their head. When a step needs explanation, prefer a better name or a flatter shape over a comment.
+- Duplication of a few lines, in one place, beats a premature abstraction. Extract only when the second real consumer exists now (`rules/reuse-duplication.md`), not because the shape "might repeat".
+- Do not build "for later". No generic mechanism, no plugin point, no extra config for a future case that has no caller today. The junior maintains what exists, not what might exist.
+
 ## Types and schemas
 
 - Declare every field of an API record with its own type. Reject a loose record (`z.record(...)`, `Record<string, unknown>`) and a shared alias for every field (`Cell`) when the shape is known.
