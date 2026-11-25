@@ -15,28 +15,29 @@ plugin-architecture
 ├── scripts/
 │   ├── devin-gate.sh        wrapper sh cho Devin, gọi devin_gate.py; thiếu file/python thì exit 0
 │   ├── devin_gate.py        gate cho Devin: payload có sẵn prompt + prompt_id nên không đọc transcript; state file theo session_id (tempdir, ghi đè bằng FE_GATE_STATE_DIR); request = prompt_id của tin nhắn không-phải-continuation cuối
-│   │   ├── gated_view       edit|write|apply_patch|exec chạm .tsx/.jsx/.js/.mjs/.cjs/.vue/.svelte/.astro/.mdx
-│   │   ├── patch_target()   apply_patch không có file_path → bóc đường dẫn gated từ `*** Update File:` / `+++ b/`
+│   │   ├── gated_view       edit|write|apply_patch|exec chạm file code mà gate_scope.in_scope() gọi là code sản phẩm
+│   │   ├── patch_target()   apply_patch không có file_path → xét mọi đường dẫn `*** Update File:` / `+++ b/`, lấy file đầu tiên thuộc code sản phẩm
 │   │   ├── bug state        UserPromptSubmit lưu bug_signal(prompt) vào state; PreToolUse đọc lại — thay cho đọc transcript
 │   │   ├── declared_texts() label_store.load(session, "", request_key): nhãn từ echo exec hoặc dòng nhãn user gõ trong prompt
 │   │   ├── commit_block()   git commit qua exec → handoff.problems → block tới khi user approve .fe-kit/handoff.md
 │   │   ├── block            in {"decision":"block","reason":...}; PostToolUse lỗi thì exit 2 qua stderr
 │   │   └── emit()           hookSpecificOutput.additionalContext (event name thật của Devin)
-│   │   giới hạn kế thừa: bash_target.write_target chỉ bắt target tương đối — redirect ra đường tuyệt đối lọt gate (giống host Claude)
 │   ├── fe-gate.sh           tìm python3, chuyển stdin JSON sang fe-gate.py; thiếu python3 thì bỏ qua (fail open)
 │   ├── fe-gate.py           lõi gate: đọc transcript, chốt allow/deny, bơm rule theo intent
-│   │   ├── git_commit()     :49   Bash command là `git commit`? → (repo root, có -a?)
-│   │   ├── commit_block()   :81   handoff.problems → deny tới khi .fe-kit/handoff.md được user approve
-│   │   ├── wording_exempt() :677  Edit/MultiEdit đi qua khi token diff chỉ đổi copy/style/comment
-│   │   ├── gate_open()      :713  owner + reuse decision có đủ? bug edit thì có nhãn repro?
-│   │   ├── conflict_edit()  :621  edit có conflict marker? → qua gate ngay
-│   │   ├── run_repo_rules() :900  gọi <repo>/.claude/rules.sh nếu có, fail → exit 2
-│   │   └── emit()           :921  in JSON additionalContext trả cho hook
+│   │   ├── git_commit()     :53   Bash command là `git commit`? → (repo root, có -a?)
+│   │   ├── commit_block()   :85   handoff.problems → deny tới khi .fe-kit/handoff.md được user approve
+│   │   ├── wording_exempt() :681  Edit/MultiEdit đi qua khi token diff chỉ đổi copy/style/comment
+│   │   ├── gated_view       :709  Write/Edit/MultiEdit: gate_scope.in_scope(file); Bash: bash_target đã lọc
+│   │   ├── gate_open()      :718  owner + reuse decision có đủ? bug edit thì có nhãn repro?
+│   │   ├── conflict_edit()  :625  edit có conflict marker? → qua gate ngay
+│   │   ├── run_repo_rules() :919  gọi <repo>/.claude/rules.sh nếu có, fail → exit 2
+│   │   └── emit()           :940  in JSON additionalContext trả cho hook
 │   ├── handoff.py           gate trước commit: staged/changed file nào cần `.fe-kit/handoff.md`, sections nào thiếu, approve của user còn hiệu lực không (sửa sau approve → stale)
 │   ├── label_store.py       nhãn khai báo bằng một lệnh `echo`/`printf`: đọc từ Bash payload, lưu theo session_id (hoặc transcript) + agent + request
-│   ├── bash_target.py       Bash command → file frontend nó ghi (redirect, tee, cp/mv, sed/perl -i, script writeFileSync/write_text, đọc cả file script, theo cd); thư mục tmp/temp/scratchpad được bỏ qua
+│   ├── bash_target.py       Bash command → file code sản phẩm nó ghi (redirect, tee, cp/mv, sed/perl -i, script writeFileSync/write_text, đọc cả file script, theo cd, đổi /c/x thành C:/x); xét mọi file đích. Đường dẫn code chỉ biết lúc chạy (glob, regex, subshell, pushd, eval, source, hai cd, cd $X, chdir trong script) → vẫn gate; /tmp của Git Bash đổi sang thư mục temp thật; file đích còn `$`/backtick sau khi thế biến môi trường → vẫn gate. Thân heredoc chỉ bỏ qua khi cả lệnh chỉ gồm các heredoc cat/tee có delimiter trong nháy (<<'EOF'), ghi ra file thường (không >( ), $( ), backtick). Ký tự xuống dòng kết thúc tên file đích
+│   ├── gate_scope.py        in_scope(file): file có phải code sản phẩm? Có trong git repo + khớp `scope` của `.fe-kit/config.yaml` gần file nhất (đi lên tới git root; không khai scope = mọi file) + không khớp `exclude`. Glob tính từ thư mục của config đó (monorepo). Config và danh sách file lấy từ `HEAD` (git ls-tree/show), nên agent sửa config trên đĩa không mở được gate. Đường dẫn qua realpath (junction, symlink, tên 8.3). Repo lồng không thu hẹp được repo ngoài: repo ngoài có config đã commit gọi file là code sản phẩm → vẫn gate. Biến PWD/OLDPWD không được thế. Không thuộc repo nào → không gate. Config hỏng, hoặc một pattern `scope` không khớp file nào mà git track (`git ls-files`) → gate. Cache repo root và config trong một lần chạy hook
 │   ├── wording.py           lexer JS/TS/JSX + token diff: JSX text, text attr, copy call/property, style, comment = wording
-│   ├── project_config.py    file thay đổi → luật dự án cần đọc: .fe-kit/config.yaml (rules, always_read, presets, spec_dirs, gate, exclude, legacy) hoặc tự tìm AGENTS.md/CLAUDE.md/rules/ từ root tới thư mục của file
+│   ├── project_config.py    file thay đổi → luật dự án cần đọc: .fe-kit/config.yaml (rules, always_read, presets, spec_dirs, gate, exclude, scope, legacy) hoặc tự tìm AGENTS.md/CLAUDE.md/rules/ từ root tới thư mục của file
 │   ├── yaml_subset.py       đọc tập con YAML bằng thư viện chuẩn; cú pháp ngoài tập con → YamlError kèm số dòng
 │   ├── review_check.py      kiểm report review-diff: verdict, mức lỗi, file:dòng có thật, mục Nguồn và độ phủ
 │   ├── review_packages.py   split: diff trên 10 file → gói tối đa 15 file, mỗi gói một reviewer; merge: gộp report các gói/lens (verdict nặng nhất, cùng file:dòng gom một đoạn)
@@ -93,7 +94,7 @@ plugin-architecture
 
 ```text
 prompt vào ──► UserPromptSubmit ──► fe-gate.py: nhận diện intent → bơm rule tương ứng
-ghi file ────► PreToolUse       ──► fe-gate.py: conflict_edit? → qua; gate_open? → thiếu nhãn thì DENY, mở đầu bằng lệnh `echo` mẫu; agent chạy lệnh đó; có session id thì nhãn trong reply text không được tính (Bash ghi file frontend cũng bị gate như Write)
+ghi file ────► PreToolUse       ──► fe-gate.py: conflict_edit? → qua; gate_open? → thiếu nhãn thì DENY, mở đầu bằng lệnh `echo` mẫu; agent chạy lệnh đó; có session id thì nhãn trong reply text không được tính (chỉ file mà gate_scope gọi là code sản phẩm; Bash ghi file đó cũng bị gate như Write)
 ghi xong ────► PostToolUse      ──► fe-gate.py: conflict marker còn? rules.sh fail? → exit 2
 compact      ──► SessionStart / PreCompact ──► fe-gate.py: transcript còn frontend work? → bơm lại rule
 ```

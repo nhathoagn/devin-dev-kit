@@ -20,7 +20,7 @@ import yaml_subset
 
 CONFIG_PATH = ".fe-kit/config.yaml"
 DEFAULT_SPEC_DIRS = ["docs", "specs", ".scratch"]
-LIST_KEYS = ("presets", "always_read", "spec_dirs", "gate", "exclude")
+LIST_KEYS = ("presets", "always_read", "spec_dirs", "gate", "exclude", "scope")
 KNOWN_KEYS = {"version", "rules", "legacy", "handoff"} | set(LIST_KEYS)
 HANDOFF_MODES = ("required", "off")
 PRESET_FILES = {"review": ["review.md"], "author": ["design.md"], "all": ["design.md", "review.md"]}
@@ -89,11 +89,18 @@ def load_config(root):
         return None, []
     try:
         with open(path, encoding="utf-8") as handle:
-            data = yaml_subset.load(handle.read())
-    except yaml_subset.YamlError as exc:
-        raise ConfigError("%s %s" % (CONFIG_PATH, exc))
+            text = handle.read()
     except (OSError, UnicodeDecodeError) as exc:
         raise ConfigError("%s cannot be read: %s" % (CONFIG_PATH, exc))
+    return parse_config(text)
+
+
+def parse_config(text):
+    """Return (config, warnings) for the text of a config file."""
+    try:
+        data = yaml_subset.load(text)
+    except yaml_subset.YamlError as exc:
+        raise ConfigError("%s %s" % (CONFIG_PATH, exc))
     if data is None:
         data = {}
     if not isinstance(data, dict):
@@ -128,9 +135,15 @@ def load_config(root):
     if handoff not in HANDOFF_MODES:
         raise ConfigError("`handoff` must be `required` or `off`")
     config["handoff"] = handoff
-    for pattern in config["exclude"]:
+    for pattern in config["exclude"] + config["scope"]:
         glob_regex(pattern)
     return config, warnings
+
+
+def exclude_hit(config, path):
+    """The `exclude` pattern that `path` (repo-relative) matches, or None. `config` may be None."""
+    patterns = (config["exclude"] if config else []) + list(ALWAYS_EXCLUDE)
+    return next((pattern for pattern in patterns if matches(pattern, path)), None)
 
 
 def normalize(root, path):
@@ -228,21 +241,15 @@ def resolve(root, files, mode="all"):
     result = {"config": CONFIG_PATH if config else None, "mode": mode, "files": [], "skipped": [],
               "read": [], "spec_dirs": list(DEFAULT_SPEC_DIRS), "gate": [], "legacy": {}, "warnings": warnings}
     reads = []
+    for path in files:
+        hit = exclude_hit(config, path)
+        if hit:
+            result["skipped"].append({"file": path, "exclude": hit})
+        else:
+            result["files"].append(path)
     if config is None:
-        for path in files:
-            hit = next((pattern for pattern in ALWAYS_EXCLUDE if matches(pattern, path)), None)
-            if hit:
-                result["skipped"].append({"file": path, "exclude": hit})
-            else:
-                result["files"].append(path)
         reads.extend(_discover(root, result["files"]))
     else:
-        for path in files:
-            hit = next((pattern for pattern in config["exclude"] + list(ALWAYS_EXCLUDE) if matches(pattern, path)), None)
-            if hit:
-                result["skipped"].append({"file": path, "exclude": hit})
-            else:
-                result["files"].append(path)
         reads.extend((path, "always_read") for path in config["always_read"])
         for entry in config["rules"]:
             hits = [pattern for pattern in entry["glob"] if any(matches(pattern, path) for path in result["files"])]

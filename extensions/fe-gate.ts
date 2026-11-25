@@ -202,7 +202,10 @@ function toPayload(event: GateEvent, ctx: GateCtx, transcriptPath: string): Gate
   if (event.toolName === "edit" || event.toolName === "ast_edit") {
     const filePath = paths[0];
     if (filePath === undefined) return [];
-    if (!pre) return [postPayload(filePath, cwd, transcriptPath)];
+    if (!pre) return paths.map((each) => postPayload(each, cwd, transcriptPath));
+    if (paths.length > 1) {
+      return paths.map((each) => prePayload("MultiEdit", { file_path: each }, cwd, transcriptPath));
+    }
     const pair = editPair(event.input);
     if (pair) {
       return [

@@ -32,6 +32,10 @@ try:
 except Exception:
     label_store = None
 try:
+    import gate_scope
+except Exception:
+    gate_scope = None
+try:
     import project_config
 except Exception:
     project_config = None
@@ -406,14 +410,17 @@ def conflict_merge_only():
 PATCH_PATH_RE = re.compile(r"(?m)^\s*(?:\*\*\*\s*(?:Update|Add|Delete)\s+File:|[+-]{3}\s+[ab]/)\s*([^\s]+)")
 
 def patch_target():
-    # apply_patch carries a patch body, not a file_path. Name the gated file it touches.
+    # apply_patch carries a patch body, not a file_path. Name the first product-code file it touches.
     if not isinstance(tool_input, dict):
         return ""
     text = "\n".join(str(v) for v in tool_input.values() if isinstance(v, str))
     for match in PATCH_PATH_RE.finditer(text):
         candidate = match.group(1).strip().strip('"')
-        if GATED_EXT_RE.search(candidate):
-            return candidate
+        if not GATED_EXT_RE.search(candidate):
+            continue
+        full = candidate if os.path.isabs(candidate) or not cwd else os.path.join(cwd, candidate)
+        if gate_scope is None or gate_scope.in_scope(full):
+            return full
     return ""
 
 def edit_pairs():
@@ -456,11 +463,12 @@ def wording_exempt():
 
 if tool_name == "apply_patch" and not path:
     path = patch_target()
-    full_path = path if os.path.isabs(path) or not cwd else os.path.join(cwd, path)
+    full_path = path
 
 gated_view = (
     tool_name in ("edit", "write", "apply_patch", "exec")
     and GATED_EXT_RE.search(path)
+    and (tool_name == "exec" or gate_scope is None or gate_scope.in_scope(full_path))
     and not wording_exempt()
     and not conflict_lines_only()
     and not conflict_merge_only()
@@ -529,15 +537,8 @@ def project_root(start):
     for env_root in (os.environ.get("DEVIN_PROJECT_DIR"), os.environ.get("CLAUDE_PROJECT_DIR")):
         if env_root and os.path.isdir(env_root):
             return env_root
-    current = os.path.abspath(start) if start else ""
-    while current and os.path.isdir(current):
-        if os.path.exists(os.path.join(current, ".git")):
-            return current
-        parent = os.path.dirname(current)
-        if parent == current:
-            break
-        current = parent
-    return start or ""
+    root = gate_scope.repo_root(start) if gate_scope and start else None
+    return root or start or ""
 
 def project_rules_command(mode):
     script = os.path.join(plugin_root(), "scripts", "project_config.py").replace("\\", "/")

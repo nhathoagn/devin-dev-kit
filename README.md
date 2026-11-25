@@ -47,6 +47,15 @@ Nhãn người dùng gõ trong yêu cầu vẫn được tính. Payload không c
 
 **Kiến trúc không có chủ.** Mỗi lần sửa file nguồn phải ghi `Runtime owner:` — component,
 hook, hay module nào thật sự giữ state và business rule. Không có nhãn, không có edit.
+Gate chỉ chặn code sản phẩm: file trong git repo, khớp `scope` của `.fe-kit/config.yaml`
+gần file nhất (chưa khai `scope` thì mọi file code), không khớp `exclude`. Monorepo đặt config
+riêng trong từng package; glob tính từ thư mục chứa config đó. Gate đọc config và danh sách
+file từ commit `HEAD`, không đọc file trên đĩa: sửa `scope`/`exclude` chỉ có hiệu lực sau khi commit.
+Đường dẫn được giải qua junction/symlink; một repo con tạo bên trong vùng `scope` không tắt được gate. File ngoài mọi git repo
+(scratchpad) không bị chặn. Script evidence trong repo không bị chặn khi nằm ngoài `scope`.
+Lệnh Bash ghi file code mà gate không biết chắc đường dẫn (glob, regex, subshell, `pushd`,
+hai `cd`, `cd $X`), hoặc ghi vào file đích còn biến chưa biết giá trị (`> "$F"`), vẫn bị chặn. Mỗi pattern `scope` phải khớp ít nhất một file git đang track;
+nếu không, gate coi config là hỏng và chặn mọi file code.
 
 **Code viết lần thứ hai.** `Decision:` phải là `reuse`, `extend`, `feature-local`,
 hoặc `shared`. `shared` chỉ hợp lệ khi có từ hai consumer thật trở lên, nêu tên.
@@ -179,7 +188,7 @@ File `.fe-kit/config.yaml` **không bắt buộc**. Chỉ viết khi cách tìm 
 |---|---|---|
 | Không có luật FE riêng | Không làm gì | Chỉ luật của fe-kit |
 | Luật ở `AGENTS.md`, `CLAUDE.md`, thư mục `rules/` gần code, hoặc `REVIEW_CHECKLIST.md` ở root | Không làm gì | Tự tìm: root, rồi từng thư mục cha của file thay đổi |
-| Cần map luật theo đường dẫn, thư mục spec riêng, lệnh cổng, file loại trừ, preset | Viết `.fe-kit/config.yaml` | Đúng file đã khai |
+| Cần map luật theo đường dẫn, thư mục spec riêng, lệnh cổng, file loại trừ, phạm vi gate, preset | Viết `.fe-kit/config.yaml` | Đúng file đã khai |
 
 Config tối thiểu:
 
@@ -201,7 +210,8 @@ rules:                             # mọi glob khớp đều cộng file
     read: [web/rules/forms.md, web/rules/layout.md]
 spec_dirs: [works/design]          # mặc định: docs specs .scratch
 gate: ["npm --prefix web run typecheck"]
-exclude: ["web/src/routeTree.gen.ts", "**/package-lock.json"]
+exclude: ["web/src/routeTree.gen.ts", "**/package-lock.json"]   # không review, không gate
+scope: ["web/src/**", "api/app/**"]   # gate chỉ chặn file khớp; bỏ trống = mọi file code
 legacy:                            # preset legacy-rewrite đọc
   source: dev/
   cr: "works/screens/{SID}.yaml"

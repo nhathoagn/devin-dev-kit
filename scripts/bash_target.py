@@ -1,19 +1,35 @@
-"""Find the frontend file that a Bash command writes.
+"""Find the product-code file that a Bash command writes.
 
 The fe-kit gate covers Edit, Write, and MultiEdit. A Bash command can write the same file through a
-redirect, tee, cp, mv, sed -i, perl -i, or a script. write_target() names that file, so fe-gate.py can
-gate the command like Write. Shell operators are read outside quotes, and a script run by a test is
-not scanned, because its writes are fixtures.
+redirect, tee, cp, mv, sed -i, perl -i, or a script. write_target() checks every file the command
+writes and names the first one that gate_scope.in_scope() calls product code, so fe-gate.py can gate
+the command like Write. Shell operators are read outside quotes, and a script run by a test is not
+scanned, because its writes are fixtures.
 """
 import os
 import re
 import shlex
+import tempfile
+
+try:
+    import gate_scope
+except Exception:
+    gate_scope = None
 
 BASH_EXT = r"\.(?:tsx|jsx|js|ts|mjs|cjs|vue|svelte|astro|mdx|py|go|rs|java|kt|kts|rb|php|cs|swift)\b"
 FRONTEND_RE = re.compile(BASH_EXT + r"$", re.I)
 # A writer that builds the path in a variable names only the extension, as in endsWith('.tsx') or '*.tsx'.
 BASH_EXT_MENTION_RE = re.compile(r"\.(tsx|jsx|js|ts|mjs|cjs|vue|svelte|astro|mdx|py|go|rs|java|kt|kts|rb|php|cs|swift)\b", re.I)
-TEMP_PATH_RE = re.compile(r"(?:^|[\\/])(?:tmp|temp|scratchpad)(?:[\\/]|$)", re.I)
+UNKNOWN_PATH_RE = re.compile(r"[$`~*?\[\]{}^|]|\\\.")
+BUILT_TARGET_RE = re.compile(r"[$`]")
+SUBSHELL_RE = re.compile(
+    r"(?:^|[;&|\n])\s*[({]|[<>$]\(|(?<![\w.-])(?:pushd|popd|eval|source)(?![\w.-])|(?:^|[;&|\n])\s*\.\s"
+)
+CHDIR_RE = re.compile(r"\bchdir\s*\(|\bcwd\s*=")
+CD_WORD_RE = re.compile(r"(?<![\w.-])cd(?![\w.-])")
+HEREDOC_START_RE = re.compile(r"<<-?")
+HEREDOC_RE = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_]\w*)\1")
+DATA_SINK_COMMANDS = {"cat", "tee"}
 BASH_ASSIGN_RE = re.compile(r"(?:^|[;&|\n]\s*|\s)([A-Za-z_]\w*)=(?:\"([^\"]*)\"|'([^']*)'|([^\s;&|]+))")
 BASH_SCRIPT_RUN_RE = re.compile(
     r"(?<![.\w/\\-])(?:node|python3?|py|deno|bun|tsx|ts-node|bash|sh|perl|ruby)\s+"
@@ -42,17 +58,84 @@ WRITE_ARG_RES = [
 LITERAL_ARG_RE = re.compile(r"^(?:\w+\()?(['\"])([^'\"$+`{}]*)\1\)?$")
 
 def dir_at(text, pos):
-    # A relative path resolves against the last cd before it, as in cd "$SP"; sed -i ... check.js.
-    base = ""
-    for match in BASH_CD_RE.finditer(text):
-        if match.start() < pos:
-            base = local_path(match.group(1))
-    return base
+    """(folder, known) for a relative path at `pos`: the one cd before it, or "" for the hook cwd.
 
-def outside_temp(target, base):
+    known is False when a subshell, a group, pushd, popd, a second cd, a cd the pattern cannot read
+    (inside if or {}, builtin cd), a cd option, or a cd to a built path comes first.
+    """
+    before = mask_quotes(text[:pos], quoted_ranges(text[:pos]))
+    cds = [match for match in BASH_CD_RE.finditer(text) if match.start() < pos]
+    if SUBSHELL_RE.search(before) or len(cds) > 1 or len(CD_WORD_RE.findall(before)) != len(cds):
+        return "", False
+    if not cds:
+        return "", True
+    folder = local_path(cds[0].group(1))
+    if folder.startswith("-") or UNKNOWN_PATH_RE.search(folder) or rooted_without_drive(folder):
+        return "", False
+    return folder, True
+
+def rooted_without_drive(path):
+    """On Windows a rooted path without a drive, as in /proc/self/cwd/x, names no known folder."""
+    return os.name == "nt" and path[:1] in "/\\" and not os.path.splitdrive(path)[0]
+
+def resolved_path(target, folder, known, cwd):
+    """The full path the command writes, or None when it is known only at run time."""
     target = local_path(target)
-    full = target if os.path.isabs(target) or not base else os.path.join(base, target)
-    return not TEMP_PATH_RE.search(full)
+    if UNKNOWN_PATH_RE.search(target):
+        return None
+    if rooted_without_drive(target):
+        return None
+    if os.path.isabs(target):
+        return target
+    if not known or not cwd:
+        return None
+    return os.path.join(cwd, folder, target)
+
+def product_target(target, folder, known, cwd):
+    """The target when it is product code or unknown, else "". An unknown path keeps the gate on."""
+    full = resolved_path(target, folder, known, cwd)
+    if full is None:
+        return target
+    if gate_scope is None or gate_scope.in_scope(full):
+        return full
+    return ""
+
+def strip_data_heredocs(text):
+    """Drop heredoc bodies only when the whole command does nothing but write quoted heredocs
+    (<<'EOF') with cat or tee to plain files. The shell then runs nothing in the body and nothing
+    reads it as code. Any other command keeps every body."""
+    kept = []
+    delimiter = None
+    for line in text.split("\n"):
+        if delimiter is not None:
+            if line.strip() == delimiter:
+                delimiter = None
+            continue
+        kept.append(line)
+        if not line.strip():
+            continue
+        masked = mask_quotes(line, quoted_ranges(line))
+        start = HEREDOC_START_RE.search(masked)
+        match = HEREDOC_RE.match(line, start.start()) if start else None
+        words = masked.split()
+        if (not match or not match.group(1) or re.search(r"[;&|`]|[<>$]\(", masked)
+                or masked.count("<<") > 1 or line.rstrip().endswith("\\")
+                or os.path.basename(words[0]) not in DATA_SINK_COMMANDS):
+            return text
+        delimiter = match.group(2)
+    return "\n".join(kept)
+
+SHELL_STATE_VARIABLES = {"PWD", "OLDPWD"}
+
+def expand_environment(target):
+    """Put in the value of an environment variable the shell does not change while it runs.
+    PWD and OLDPWD follow each cd, so they stay unknown, and so does any unset variable."""
+    def value(match):
+        name = match.group(1) or match.group(2)
+        if name in SHELL_STATE_VARIABLES or name not in os.environ:
+            return match.group(0)
+        return os.environ[name].replace("\\", "/")
+    return re.sub(r"\$\{(\w+)\}|\$(\w+)", value, target)
 
 def expand_variables(command):
     values = {}
@@ -67,9 +150,10 @@ def expand_variables(command):
     return command
 
 def local_path(candidate):
-    # Git Bash writes C:\x as /c/x. Windows Python needs the drive letter back.
+    # Git Bash writes C:\x as /c/x and mounts the Windows temp folder at /tmp.
     if os.name == "nt":
         candidate = re.sub(r"^/([a-zA-Z])/", r"\1:/", candidate)
+        candidate = re.sub(r"^/tmp(?=/|$)", lambda _: tempfile.gettempdir().replace("\\", "/"), candidate)
     return candidate
 
 def quoted_ranges(text):
@@ -121,7 +205,7 @@ def read_token(text, pos):
             pos += 1
         return text[start:pos], min(pos + 1, length)
     start = pos
-    while pos < length and text[pos] not in " \t;&|<>()":
+    while pos < length and text[pos] not in " \t\n;&|<>()`":
         pos += 1
     return text[start:pos], pos
 
@@ -309,9 +393,30 @@ def write_call_targets(text, ranges):
                 targets.append((literal.group(2), match.start()))
     return targets, dynamic
 
-def write_target_in(text, run_dir=None):
-    # run_dir is the cd a script file runs under. A command resolves each path against its own cd.
+def dynamic_target(text, base_at, cwd):
+    """For a write call whose path is built at run time: the first code file the text names that is
+    product code or unknown, else "". A bare extension such as `.tsx` names no file."""
+    for match in re.finditer(r"[^\s;&|<>'\"()]+", text):
+        token = match.group(0)
+        mention = BASH_EXT_MENTION_RE.search(token)
+        if not mention:
+            continue
+        bare = not re.search(r"[\\/]", token)
+        if bare or os.path.basename(token).startswith(".") or UNKNOWN_PATH_RE.search(token):
+            return "(script that writes *%s)%s" % (mention.group(0), mention.group(0))
+        target = product_target(token, *base_at(match.start()), cwd)
+        if target:
+            return target
+    return ""
+
+def write_target_in(text, cwd, run_dir=None):
+    if run_dir is None:
+        text = strip_data_heredocs(text)
+    # A script that changes its own folder makes every relative path in it unknown.
+    moves = CHDIR_RE.search(text)
     def base_at(pos):
+        if moves:
+            return "", False
         return dir_at(text, pos) if run_dir is None else run_dir
     ranges = quoted_ranges(text)
     masked = mask_quotes(text, ranges)
@@ -326,14 +431,15 @@ def write_target_in(text, run_dir=None):
     targets += inplace + calls
     dynamic = inplace_dynamic or call_dynamic
     for target, pos in targets:
-        if FRONTEND_RE.search(target) and outside_temp(target, base_at(pos)):
-            return target
-    if dynamic:
-        for token in re.findall(r"[^\s;&|<>'\"()]+", text):
-            mention = BASH_EXT_MENTION_RE.search(token)
-            if mention and not TEMP_PATH_RE.search(token):
-                return "(script that writes *%s)%s" % (mention.group(0), mention.group(0))
-    return ""
+        target = expand_environment(target)
+        if not FRONTEND_RE.search(target):
+            if BUILT_TARGET_RE.search(target):
+                return "(write to a path built at run time: %s).ts" % target
+            continue
+        hit = product_target(target, *base_at(pos), cwd)
+        if hit:
+            return hit
+    return dynamic_target(text, base_at, cwd) if dynamic else ""
 
 def script_sources(command, cwd):
     # (text, run folder) of each script file the command runs, read from disk when it exists.
@@ -341,7 +447,7 @@ def script_sources(command, cwd):
     for match in BASH_SCRIPT_RUN_RE.finditer(command):
         base = dir_at(command, match.start())
         script = local_path(match.group(1))
-        candidate = script if os.path.isabs(script) else os.path.join(base or cwd, script)
+        candidate = script if os.path.isabs(script) else os.path.join(cwd or "", base[0], script)
         if TEST_SCRIPT_RE.search(candidate):
             continue
         try:
@@ -353,13 +459,13 @@ def script_sources(command, cwd):
     return sources
 
 def write_target(command, cwd):
-    # The frontend file a Bash command writes, or "" when it writes none.
+    # The full path of a product-code file the Bash command writes, or "" when it writes none.
     command = expand_variables(command)[:COMMAND_MAX_BYTES]
-    target = write_target_in(command)
+    target = write_target_in(command, cwd)
     if target:
         return target
     for source, run_dir in script_sources(command, cwd):
-        target = write_target_in(source, run_dir)
+        target = write_target_in(source, cwd, run_dir)
         if target:
             return target
     return ""

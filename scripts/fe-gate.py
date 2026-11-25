@@ -19,6 +19,10 @@ try:
 except Exception:
     label_store = None
 try:
+    import gate_scope
+except Exception:
+    gate_scope = None
+try:
     import project_config
 except Exception:
     project_config = None
@@ -705,6 +709,7 @@ def wording_exempt():
 gated_view = (
     tool_name in ("Write", "Edit", "MultiEdit", "Bash")
     and GATED_EXT_RE.search(path)
+    and (tool_name == "Bash" or gate_scope is None or gate_scope.in_scope(full_path))
     and not wording_exempt()
     and not conflict_lines_only()
     and not conflict_merge_only()
@@ -908,15 +913,8 @@ def project_root(start):
     env_root = os.environ.get("CLAUDE_PROJECT_DIR") or ""
     if env_root and os.path.isdir(env_root):
         return env_root
-    current = os.path.abspath(start) if start else ""
-    while current and os.path.isdir(current):
-        if os.path.exists(os.path.join(current, ".git")):
-            return current
-        parent = os.path.dirname(current)
-        if parent == current:
-            break
-        current = parent
-    return start or ""
+    root = gate_scope.repo_root(start) if gate_scope and start else None
+    return root or start or ""
 
 def run_repo_rules(start, target):
     root = project_root(start)
