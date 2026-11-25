@@ -71,7 +71,7 @@ Agent hỏi bạn 3–5 câu về state holder, nhánh dễ sót và check chứ
 chặn đến lúc đó, và sửa file sau khi approve thì phải approve lại. Repo muốn tắt:
 `handoff: "off"` trong `.fe-kit/config.yaml`.
 
-**Tác giả tự chấm bài mình.** Người viết diff không được review diff đó. Claude Code có
+**Chỉ review khi user yêu cầu.** Agent không tự review sau khi edit. Khi được yêu cầu, người viết diff không được review diff đó. Claude Code có
 agent `fe-kit:reviewer` read-only; omp dùng một context sạch chỉ nhận diff range và playbook.
 
 ---

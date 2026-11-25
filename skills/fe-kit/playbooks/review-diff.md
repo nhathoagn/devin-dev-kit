@@ -1,6 +1,6 @@
 # Review a diff
 
-Use this when the task is to review a diff, or before a non-trivial code edit is called done — any source file, not only frontend. The author of the diff does not fill this report.
+Use this only when the user asks for a review of a diff — any source file, not only frontend. Do not start it on your own after an edit. The author of the diff does not fill this report.
 
 If the diff adds or changes tested behaviour, or rewrites logic that replaces an older implementation, this playbook does not apply: use `playbooks/review-invariants.md` instead. It asks which invariant has no test that would fail if it broke, and which invariant the previous version held, instead of hunting for findings.
 

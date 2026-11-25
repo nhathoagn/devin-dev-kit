@@ -188,7 +188,7 @@ def bug_signal(text):
 wording_hit = WORDING_RE.search(prompt)
 bug_hit = bug_signal(prompt)
 review_hit = re.search(
-    r"review(?: the)? diff|git diff|trước commit|truoc commit|before commit|code review|soi diff",
+    r"\breview\b|soi (?:diff|code)",
     prompt,
     re.I,
 )
@@ -894,7 +894,6 @@ CODE_EDIT_RE = re.compile(
 )
 
 def transcript_has_code(event):
-    # A code-editing session that never mentioned frontend still owes a fresh-eyes review.
     if transcript_has_frontend(event):
         return True
     transcript = event.get("transcript_path") or ""
@@ -955,8 +954,6 @@ if name == "PreCompact":
     if transcript_has_code(event):
         sys.stdout.write(
             "Keep these rules in the summary. Read skill://fe-kit before a non-trivial frontend edit. "
-            "Keep the review rule in the summary. Do not grade a diff you wrote — "
-            "a fresh reviewer reads the fe-kit review-diff playbook for any source file, not only frontend. "
             "A different job goes in a new file, per rules/modules.md. "
             "Keep any Architecture ownership and Reuse Decision already recorded.\n"
         )
@@ -975,7 +972,7 @@ if name == "PostToolUse":
         fail("\n".join(errors))
     if source_hit and user_is_bug(event.get("transcript_path") or ""):
         emit(name, [
-            "Write or update the unit test beside the owner. It must fail on Actual and pass on Expected. For a text check, include undefined, null, empty, leading space, and trailing space. Then re-run that test and the reproduction. Hand this diff to fe-kit:reviewer or a fresh context that reads skill://fe-kit/playbooks/review-diff.md. Do not write the verdict."
+            "Write or update the unit test beside the owner. It must fail on Actual and pass on Expected. For a text check, include undefined, null, empty, leading space, and trailing space. Then re-run that test and the reproduction."
         ])
     sys.exit(0)
 
@@ -984,7 +981,6 @@ if name == "SessionStart" and event.get("source") == "compact" and transcript_ha
     if transcript_has_frontend(event):
         bodies.append(load_rule("fe-implementation.md"))
     bodies.append(rule_bundle())
-    bodies.append(review_context())
     if project_config_context():
         bodies.append(project_config_context())
 elif name == "UserPromptSubmit":
@@ -994,7 +990,7 @@ elif name == "UserPromptSubmit":
             bodies.append(project_config_context())
     if (prompt_hit or reuse_hit or author_hit or bug_hit) and not (wording_hit and not bug_hit):
         bodies.append(rule_bundle())
-    if prompt_hit or review_hit or author_hit:
+    if review_hit:
         bodies.append(review_context())
     if conflict_hit or repo_in_conflict(cwd):
         bodies.append(load_rule("conflict-fix.md"))
@@ -1003,7 +999,6 @@ elif name == "PreToolUse":
         bodies.append(load_rule("fe-implementation.md"))
     if source_hit:
         bodies.append(rule_bundle())
-        bodies.append(review_context())
     if file_has_markers(full_path) or repo_in_conflict(cwd):
         bodies.append(load_rule("conflict-fix.md"))
 

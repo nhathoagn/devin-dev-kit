@@ -1,6 +1,6 @@
 # Author loop — review, fix, verify, repeat
 
-Use this when the task is to fix or rewrite existing code and the diff will be reviewed by lens fan-out. The loop is the author's side of `playbooks/review-diff.md`; that file is the reviewer's side. Do not skip steps because an earlier pass ran clean — a pass only grades the version it ran on.
+Use this when the task is to fix or rewrite existing code and the diff will be reviewed by lens fan-out. The loop is the author's side of `playbooks/review-diff.md`; that file is the reviewer's side. Run steps 4–9 only when the user asks for a review. Otherwise stop after step 3 and report. Do not skip steps because an earlier pass ran clean — a pass only grades the version it ran on.
 
 ## The loop
 

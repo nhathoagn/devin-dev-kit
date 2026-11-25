@@ -196,7 +196,7 @@ def bug_signal(text):
 wording_hit = WORDING_RE.search(prompt)
 bug_hit = bug_signal(prompt)
 review_hit = re.search(
-    r"review(?: the)? diff|git diff|trước commit|truoc commit|before commit|code review|soi diff",
+    r"\breview\b|soi (?:diff|code)",
     prompt,
     re.I,
 )
@@ -638,7 +638,7 @@ if name == "UserPromptSubmit":
             bodies.append(project_config_context())
     if (prompt_hit or reuse_hit or author_hit or bug_hit) and not (wording_hit and not bug_hit):
         bodies.append(rule_bundle())
-    if prompt_hit or review_hit or author_hit:
+    if review_hit:
         bodies.append(review_context())
     if conflict_hit or repo_in_conflict(cwd):
         bodies.append(load_rule("conflict-fix.md"))
@@ -679,11 +679,6 @@ if name == "PreToolUse" and gated_view:
         reason += missing_note(bug_edit)
         print(json.dumps({"decision": "block", "reason": reason}))
         sys.exit(0)
-elif name == "PreToolUse" and path and source_hit and tool_name in ("edit", "write", "apply_patch"):
-    # A non-gated source edit still makes the session's diff reviewable.
-    if not state.get("edited"):
-        state["edited"] = True
-        save_state(state)
 
 # --- PostToolUse ----------------------------------------------------------
 if name == "PostToolUse":
@@ -700,7 +695,7 @@ if name == "PostToolUse":
         fail("\n".join(errors))
     if source_hit and state.get("bug"):
         emit(name, [
-            "Write or update the unit test beside the owner. It must fail on Actual and pass on Expected. For a text check, include undefined, null, empty, leading space, and trailing space. Then re-run that test and the reproduction. Hand this diff to the fe-kit:reviewer subagent or a fresh context that reads playbooks/review-diff.md in the fe-kit skill. Do not write the verdict."
+            "Write or update the unit test beside the owner. It must fail on Actual and pass on Expected. For a text check, include undefined, null, empty, leading space, and trailing space. Then re-run that test and the reproduction."
         ])
     sys.exit(0)
 
@@ -713,20 +708,11 @@ if name == "PostCompaction" or (name == "SessionStart" and event.get("source") =
         bodies = [
             "fe-kit gate is active. Before editing a frontend file, declare the labels with one exec echo command "
             "(`Runtime owner:`, `Decision:`, plus `Trigger:`/`Expected:`/`Actual:` for a bug fix). "
-            "Read the fe-kit skill before a non-trivial frontend edit. "
-            "Do not grade a diff you wrote — a fresh reviewer reads the fe-kit review-diff playbook "
-            "for any source file, not only frontend; spawn it with the playbook path.",
-            review_context(),
+            "Read the fe-kit skill before a non-trivial frontend edit.",
         ]
         if project_config_context():
             bodies.append(project_config_context())
         emit(name, bodies)
-    elif state.get("edited"):
-        emit(name, [
-            "Do not grade a diff you wrote — a fresh reviewer reads the fe-kit review-diff playbook "
-            "for any source file, not only frontend; spawn it with the playbook path.",
-            review_context(),
-        ])
     sys.exit(0)
 
 # --- PreToolUse context injection -----------------------------------------
@@ -736,7 +722,6 @@ if name == "PreToolUse":
         bodies.append(load_rule("fe-implementation.md"))
     if source_hit:
         bodies.append(rule_bundle())
-        bodies.append(review_context())
     if file_has_markers(full_path) or repo_in_conflict(cwd):
         bodies.append(load_rule("conflict-fix.md"))
 

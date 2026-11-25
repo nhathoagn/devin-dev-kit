@@ -2,6 +2,16 @@
 
 
 
+## 1.38.3
+
+The fan-out review ran after every edit, even when the user did not ask for one. Review now runs only when the user asks.
+
+- `rules/review-diff.md`: review a diff only when the user asks. Do not start a review on your own after an edit, before a commit, or before reporting done. The fan-out steps stay the same when the user asks.
+- `scripts/fe-gate.py`, `scripts/devin_gate.py`: `review_context()` is injected only on `review_hit` (`\breview\b|soi (?:diff|code)`). It is no longer injected on `prompt_hit`/`author_hit`, on a source-file `PreToolUse`, on `SessionStart(compact)`, `PreCompact`, or Devin resume. The bug-flow `PostToolUse` note no longer hands the diff to a reviewer. Devin drops the `state["edited"]` flag, which only fed the resume reminder.
+- Removed `extensions/auto-review.ts`, the omp note that asked for a review after every edit.
+- `agents/reviewer.md`, `skills/fe-kit/SKILL.md`, `playbooks/review-diff.md`, `playbooks/author-loop.md` (steps 4–9 only on request), `README.md`, `CODEMAP.md` follow the new rule.
+- Version 1.38.3 in `.claude-plugin/plugin.json`, `.devin-plugin/plugin.json`, `package.json`, and both places in `marketplace.json`.
+
 ## 1.38.2
 
 The checkout experiment is finished: the seeded fixture was fixed in place, every seeded defect review (30/30 recall) and the pass-2 verification shipped, and the tree no longer carries a test suite or dead dependencies.

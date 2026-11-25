@@ -15,7 +15,7 @@ Pick one playbook. Read that file from this skill directory. On omp, use `skill:
 |---|---|
 | New component, page, form, or hook | `playbooks/new-ui.md` |
 | Wrong behavior, a wrong value, a broken flow, or a symptom report | `playbooks/fix-bug.md` |
-| Any diff before commit, frontend or not. The author does not run this. | `playbooks/review-diff.md` |
+| A diff the user asks to review, frontend or not. The author does not run this. | `playbooks/review-diff.md` |
 | A diff that adds or changes tested behaviour, or rewrites logic that replaces an older implementation | `playbooks/review-invariants.md` |
 | Split, move, or restructure existing UI | `playbooks/refactor-ui.md` |
 | Waterfall, bundle, rerender, or list jank | `playbooks/perf-ui.md` |

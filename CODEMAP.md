@@ -113,7 +113,7 @@ Cờ regex ở đầu file, khớp prompt tiếng Việt lẫn tiếng Anh:
 | `author_hit` | :50 | add, implement, viết, thêm, tách, sửa |
 | `bug_hit` | :90 | `bug_signal()`: bug, lỗi, sai khi, màn hình trắng, broken — trừ wording/meta |
 | `wording_hit` | :59 | typo, chính tả, đổi màu, text, copy, label (bỏ rule reuse và bug mode) |
-| `review_hit` | :91 | review diff, trước commit, git diff |
+| `review_hit` | :91 | review, soi diff, soi code |
 
 Ma trận nạp ở `:611`:
 
@@ -129,8 +129,8 @@ Ma trận nạp ở `:611`:
 | | file/repo còn marker conflict | `rules/conflict-fix.md` |
 | PostToolUse | marker còn trong file | stderr + exit 2, chặn phiên |
 | | `<repo>/.claude/rules.sh` fail | stderr + exit 2 |
-| | sửa file frontend trong bug flow | lệnh bắt viết UT fail-on-Actual trước khi hand reviewer (`:562`) |
-| SessionStart(compact) | transcript có frontend | nạp lại fe-implementation + bundle + review_context (`:569`) |
+| | sửa file frontend trong bug flow | lệnh bắt viết UT fail-on-Actual (`:562`) |
+| SessionStart(compact) | transcript có frontend | nạp lại fe-implementation + bundle (`:569`) |
 | PreCompact | transcript có frontend | dặn summary giữ rule, không đổi (`:544`) |
 
 Gate deny (thiếu `Runtime owner` / `Reuse Decision` nhãn) nằm ở PreToolUse, không ở bảng này — xem `gate_open()` `:369`.
@@ -205,11 +205,11 @@ claude --debug -p "review the diff"      rồi grep "Loading hooks from plugin: 
 | bug + owner/decision, thiếu repro | deny + nêu `Trigger/Expected/Actual` thiếu, exit 0 |
 | bug + owner/decision + đủ repro | allow + inject rule, exit 0 |
 | PostToolUse + bug | sinh lệnh viết UT fail-on-Actual, exit 0 |
-| SessionStart(compact) + transcript frontend | nạp lại fe-implementation + bundle + review_context |
+| SessionStart(compact) + transcript frontend | nạp lại fe-implementation + bundle |
 | PreCompact + transcript frontend | in "Keep these rules in the summary" |
 | PostToolUse file còn conflict marker | stderr "Conflict markers remain", exit 2 |
 | PostToolUse `<repo>/.claude/rules.sh` exit 1 | stderr "VI PHẠM RULE", exit 2 |
-| prompt `review diff trước commit` | inject `review_context` (rule + playbook path) |
+| prompt có `review` | inject `review_context` (rule + playbook path) — chỉ khi user yêu cầu |
 | prompt `xung đột merge` | inject `conflict-fix.md` |
 | decision nằm ở transcript subagent (`agent_id`) | allow nhờ nhánh `subagent_transcript()` |
 | wording-only edit, transcript rỗng | allow — token diff `scripts/wording.py`, không cần nhãn |

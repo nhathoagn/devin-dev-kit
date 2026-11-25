@@ -1,6 +1,6 @@
 ---
 name: reviewer
-description: Review a git diff in a fresh context against the fe-kit checklist. Use after any code edit, frontend or not, before commit or PR. Read-only. Do not use for a screen review of existing UI.
+description: Review a git diff in a fresh context against the fe-kit checklist. Use only when the user asks for a review, frontend or not. Read-only. Do not use for a screen review of existing UI.
 tools: Read, Grep, Glob, Bash
 ---
 
