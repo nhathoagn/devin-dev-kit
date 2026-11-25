@@ -999,6 +999,7 @@ elif name == "PreToolUse":
         bodies.append(load_rule("fe-implementation.md"))
     if source_hit:
         bodies.append(rule_bundle())
+        bodies.append(review_context())
     if file_has_markers(full_path) or repo_in_conflict(cwd):
         bodies.append(load_rule("conflict-fix.md"))
 

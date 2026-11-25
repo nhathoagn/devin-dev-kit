@@ -35,30 +35,20 @@ plugin-architecture
 │   ├── handoff.py           gate trước commit: staged/changed file nào cần `.fe-kit/handoff.md`, sections nào thiếu, approve của user còn hiệu lực không (sửa sau approve → stale)
 │   ├── label_store.py       nhãn khai báo bằng một lệnh `echo`/`printf`: đọc từ Bash payload, lưu theo session_id (hoặc transcript) + agent + request
 │   ├── bash_target.py       Bash command → file code sản phẩm nó ghi (redirect, tee, cp/mv, sed/perl -i, script writeFileSync/write_text, đọc cả file script, theo cd, đổi /c/x thành C:/x); xét mọi file đích. Đường dẫn code chỉ biết lúc chạy (glob, regex, subshell, pushd, eval, source, hai cd, cd $X, chdir trong script) → vẫn gate; /tmp của Git Bash đổi sang thư mục temp thật; file đích còn `$`/backtick sau khi thế biến môi trường → vẫn gate. Thân heredoc chỉ bỏ qua khi cả lệnh chỉ gồm các heredoc cat/tee có delimiter trong nháy (<<'EOF'), ghi ra file thường (không >( ), $( ), backtick). Ký tự xuống dòng kết thúc tên file đích
-│   ├── gate_scope.py        in_scope(file): file có phải code sản phẩm? Có trong git repo + khớp `scope` của `.fe-kit/config.yaml` gần file nhất (đi lên tới git root; không khai scope = mọi file) + không khớp `exclude`. Glob tính từ thư mục của config đó (monorepo). Config và danh sách file lấy từ `HEAD` (git ls-tree/show), nên agent sửa config trên đĩa không mở được gate. Đường dẫn qua realpath (junction, symlink, tên 8.3). Repo lồng dưới repo của dự án (CLAUDE_PROJECT_DIR / cwd) không thu hẹp được repo dự án; repo nằm trên dự án chỉ có tiếng nói qua config đã commit. `.git` không có HEAD (và không phải gitfile) không tính là repo. Bash chỉ thế biến gán một lần ngay trong lệnh; biến môi trường, biến gán lại (for/read/printf -v/mapfile/declare), CDPATH, lệnh tạo link (mklink, ln -s, New-Item Junction, subst) → vẫn gate. mv vào thư mục ghép thư mục/tên file như cp. Không thuộc repo nào → không gate. Config hỏng, hoặc một pattern `scope` không khớp file nào đã commit ở HEAD (`git ls-tree`) → gate. Cache repo root và config trong một lần chạy hook
+│   ├── gate_scope.py        in_scope(file): file có phải code sản phẩm? Có trong git repo + khớp `scope` của `.fe-kit/config.yaml` gần file nhất (đi lên tới git root; không khai scope = mọi file) + không khớp `exclude`. Glob tính từ thư mục của config đó (monorepo). Config và danh sách file lấy từ `HEAD` (git ls-tree/show), nên agent sửa config trên đĩa không mở được gate. Đường dẫn qua realpath (junction, symlink, tên 8.3). Repo lồng dưới repo của dự án (CLAUDE_PROJECT_DIR / cwd) không thu hẹp được repo dự án; repo nằm trên dự án chỉ có tiếng nói qua config đã commit. `.git` không có HEAD (và không phải gitfile) không tính là repo. Bash chỉ gate lệnh có target đọc được
 │   ├── wording.py           lexer JS/TS/JSX + token diff: JSX text, text attr, copy call/property, style, comment = wording
 │   ├── project_config.py    file thay đổi → luật dự án cần đọc: .fe-kit/config.yaml (rules, always_read, presets, spec_dirs, gate, exclude, scope, legacy) hoặc tự tìm AGENTS.md/CLAUDE.md/rules/ từ root tới thư mục của file
 │   ├── yaml_subset.py       đọc tập con YAML bằng thư viện chuẩn; cú pháp ngoài tập con → YamlError kèm số dòng
 │   ├── review_check.py      kiểm report review-diff: verdict, mức lỗi, file:dòng có thật, mục Nguồn và độ phủ
 │   ├── review_packages.py   split: diff trên 10 file → gói tối đa 15 file, mỗi gói một reviewer; merge: gộp report các gói/lens (verdict nặng nhất, cùng file:dòng gom một đoạn)
-│   ├── review_lenses.py    list: 6 góc nhìn chia hết checklist (mỗi item một lens); items <lens>: mã item cho brief task
+│   ├── review_lenses.py    list [--pass 1|2|invariants]: pass 1 = 8 lens checklist + audit (đi audit.md); pass 2 = correctness, contract, probe, invariant; items/brief <lens>: mã item hoặc task brief
 │   ├── review_record.py     save: lưu report + sha vào .fe-kit/reviews/<branch>.md; last: in sha và lỗi cũ cho lần review sau
-│   ├── test_wording.py      85 test lexer/token diff
-│   ├── test_variable_rename.py  18 test: đổi tên biến là thay đổi hành vi, gate phải chặn
-│   ├── test_fe_gate.py      223 case cho hành vi fe-gate.py
-│   ├── test_bash_target.py  18 test: sed/perl -i, cp/mv, redirect trong quote, script test không bị gate
-│   ├── test_handoff.py      13 test: thiếu/thiếu section/chưa approve → block; sửa sau approve → stale; `handoff: off` tắt gate
-│   ├── test_devin_gate.py   27 test cho devin_gate.py: inject, block, echo nhãn, bug repro, wording exempt, exec ghi file, isolation theo session
-│   ├── test_yaml_subset.py  52 test, so với pyyaml khi máy có
-│   ├── test_project_config.py  52 test glob, fallback, config, lỗi, preset, git, thư mục con, tên non-ASCII
-│   ├── test_review_check.py 25 test report
-│   ├── test_review_packages.py 25 test split/merge/dedupe
-│   ├── test_review_record.py 15 test save/last
-│   ├── test_rule_copies.py  một câu luật chỉ nằm ở một file (rules/ → skill, SKILL.md → playbook)
-│   └── test_versions.py     plugin.json = .devin-plugin/plugin.json = package.json = marketplace.json = CHANGELOG
+│   ├── test_review_lenses.py, test_review_check.py   suite unittest duy nhất (các test_* cũ đã gỡ ở 62310ca)
+├── fixtures/              input cố tình lỗi để kiểm review tool; không phải code sản phẩm, không import vào đâu
+│   ├── review-seed.ts     module seed chứa các lớp lỗi để soi bằng lens
+│   └── fixed/             bản đã sửa: canonical, delivery, polling, pricing, schema, stock
 ├── extensions/
-│   ├── fe-gate.ts           omp extension (khai báo `omp.extensions` trong package.json): map edit/ast_edit/write/bash sang payload gate (nhận old_string, oldText, oldString, old_str, old, search; edits[]), chặn edit thiếu nhãn qua tool_call, kiểm conflict/rules.sh sau ghi qua tool_result — gọi cùng scripts/fe-gate.sh; ghi verdict cuối (ok/blocked/note/rules) lên status line
-│   └── fe-gate.test.ts      29 case `node --test`, spawn gate thật (Windows: qua `sh`, đường dẫn dấu /)
+│   └── fe-gate.ts           omp extension (khai báo `omp.extensions` trong package.json): map edit/ast_edit/write/bash sang payload gate (nhận old_string, oldText, oldString, old_str, old, search; edits[]), chặn edit thiếu nhãn qua tool_call, kiểm conflict/rules.sh sau ghi qua tool_result — gọi cùng scripts/fe-gate.sh; ghi verdict cuối (ok/blocked/note/rules) lên status line
 ├── rules/                   nội dung bơm vào prompt (hook nạp); frontmatter thêm trigger: always_on cho Devin
 │   ├── fe-implementation.md quy trình edit: quyết định trước, code sau
 │   ├── reuse-duplication.md tái sử dụng implementation có sẵn, cấm viết trùng
@@ -74,10 +64,10 @@ plugin-architecture
 │   ├── fe-kit/
 │   │   ├── SKILL.md         entry: chọn playbook theo loại việc (new-ui, fix-bug, refactor, perf, review)
 │   │   ├── CHANGELOG.md     lịch sử version
-│   │   ├── playbooks/       8 playbook: new-ui, fix-bug, refactor-ui, perf-ui, review-ui, review-diff, cleanup, author-loop — mỗi playbook gọi references/
-│   │   ├── references/      chi tiết: ownership, reuse, performance, code-quality, audit, REVIEW_CHECKLIST, feature-isolation, external,
+│   │   ├── playbooks/       9 playbook: new-ui, fix-bug, refactor-ui, perf-ui, review-ui, review-diff, review-invariants, cleanup, author-loop — mỗi playbook gọi references/
+│   │   ├── references/      chi tiết: ownership, reuse, performance, code-quality, audit, REVIEW_CHECKLIST + review-checks (bảng F-item) + review-output (bản report người đọc), feature-isolation, external,
 │   │   │                    handoff (gate trước commit), smells-checklist + fowler-checklist + posd-checklist
-│   │   │                    + tidy-checklist + test-checklist (bộ chấm SM/F/O/T/U), patterns, frontend-moves
+│   │   │                    + tidy-checklist + test-checklist (bộ chấm SM/F/O/T/U), patterns, frontend-moves, codemap-host-report
 │   │   └── evals/           evals.json + triggers.json + 2 report eval (e2e-gate, ut-review)
 │   ├── ut-report/
 │   │   ├── SKILL.md         xuất báo cáo UT 1 màn hình ra .xlsx
@@ -94,7 +84,7 @@ plugin-architecture
 
 ```text
 prompt vào ──► UserPromptSubmit ──► fe-gate.py: nhận diện intent → bơm rule tương ứng
-ghi file ────► PreToolUse       ──► fe-gate.py: conflict_edit? → qua; gate_open? → thiếu nhãn thì DENY, mở đầu bằng lệnh `echo` mẫu; agent chạy lệnh đó; có session id thì nhãn trong reply text không được tính (chỉ file mà gate_scope gọi là code sản phẩm; Bash ghi file đó cũng bị gate như Write)
+ghi file ────► PreToolUse       ──► fe-gate.py: conflict_edit? → qua; gate_open? → thiếu nhãn thì DENY, mở đầu bằng lệnh `echo` mẫu; agent chạy lệnh đó; có session id thì nhãn trong reply text không được tính (Bash ghi file frontend cũng bị gate như Write)
 ghi xong ────► PostToolUse      ──► fe-gate.py: conflict marker còn? rules.sh fail? → exit 2
 compact      ──► SessionStart / PreCompact ──► fe-gate.py: transcript còn frontend work? → bơm lại rule
 ```
@@ -113,7 +103,7 @@ Cờ regex ở đầu file, khớp prompt tiếng Việt lẫn tiếng Anh:
 | `author_hit` | :50 | add, implement, viết, thêm, tách, sửa |
 | `bug_hit` | :90 | `bug_signal()`: bug, lỗi, sai khi, màn hình trắng, broken — trừ wording/meta |
 | `wording_hit` | :59 | typo, chính tả, đổi màu, text, copy, label (bỏ rule reuse và bug mode) |
-| `review_hit` | :91 | review, soi diff, soi code |
+| `review_hit` | :91 | review diff, trước commit, git diff |
 
 Ma trận nạp ở `:611`:
 
@@ -129,8 +119,8 @@ Ma trận nạp ở `:611`:
 | | file/repo còn marker conflict | `rules/conflict-fix.md` |
 | PostToolUse | marker còn trong file | stderr + exit 2, chặn phiên |
 | | `<repo>/.claude/rules.sh` fail | stderr + exit 2 |
-| | sửa file frontend trong bug flow | lệnh bắt viết UT fail-on-Actual (`:562`) |
-| SessionStart(compact) | transcript có frontend | nạp lại fe-implementation + bundle (`:569`) |
+| | sửa file frontend trong bug flow | lệnh bắt viết UT fail-on-Actual trước khi hand reviewer (`:562`) |
+| SessionStart(compact) | transcript có frontend | nạp lại fe-implementation + bundle + review_context (`:569`) |
 | PreCompact | transcript có frontend | dặn summary giữ rule, không đổi (`:544`) |
 
 Gate deny (thiếu `Runtime owner` / `Reuse Decision` nhãn) nằm ở PreToolUse, không ở bảng này — xem `gate_open()` `:369`.
@@ -167,7 +157,7 @@ tác giả viết diff ──KHÔNG được chấm──► bàn giao
 ├── Claude Code: agent fe-kit:reviewer (agents/reviewer.md)
 │   ├── read-only: Read, Grep, Glob, Bash — không sửa, không commit, không spawn reviewer khác
 │   ├── task PHẢI kèm playbook path, thiếu → dừng, không tự bịa checklist
-│   └── đọc playbooks/review-diff.md → chạy project_config.py → đi REVIEW_CHECKLIST.md + F1..F24 + luật dự án → grep caller → lọc lại → review_check.py
+│   └── đọc playbooks/review-diff.md → chạy project_config.py → đi REVIEW_CHECKLIST.md + F1..F25 + luật dự án → grep caller → lọc lại → review_check.py
 └── omp: context mới, duy nhất nhiệm vụ = diff range + skill://fe-kit/playbooks/review-diff.md
     └── không mang ghi chú của tác giả
 Báo cáo: Verdict đứng đầu, mỗi miss là 1 câu, xong rồi dừng.
@@ -176,22 +166,11 @@ Báo cáo: Verdict đứng đầu, mỗi miss là 1 câu, xong rồi dừng.
 ## Verify — chạy gì để chắc map đúng
 
 ```text
-python3 scripts/test_wording.py          85 test lexer/token diff (copy vs code)
-python3 scripts/test_variable_rename.py  đổi tên biến → deny, đổi copy → allow (test gate thật)
-python3 scripts/test_fe_gate.py          227 case hành vi gate (deny/allow, intent, conflict, file type, Bash ghi file, nhãn khai báo, dòng project rules, handoff)
-python3 scripts/test_bash_target.py      18 test Bash → file ghi (sed/perl -i, cp/mv, redirect trong quote)
-python3 scripts/test_handoff.py          13 test gate trước commit (thiếu file, thiếu section, approve, stale)
-python3 scripts/test_devin_gate.py       30 test gate Devin (inject, block, echo nhãn, bug repro, isolation)
-python3 scripts/test_yaml_subset.py      52 test tập con YAML
-python3 scripts/test_project_config.py   52 test luật dự án
-python3 scripts/test_review_check.py     25 test kiểm report
-python3 scripts/test_review_packages.py  25 test chia gói, gộp report, gộp lỗi trùng
-python3 scripts/test_review_record.py    15 test lưu, đọc review cũ
-python3 scripts/test_rule_copies.py      không câu luật nào bị chép sang file khác
-python3 scripts/test_versions.py         version giống nhau ở mọi manifest + CHANGELOG
-node --test extensions/fe-gate.test.ts   30 test extension omp: verdict, prompt, chặn edit, wording
+python3 scripts/review_lenses.py list --pass 1   7 lens pass 1 (6 checklist + audit); --pass 2 và --pass invariants cho nhóm khác
 cat skills/fe-kit/evals/triggers.json    16 query mẫu: should_trigger true/false — kiểm intent regex
 sh scripts/fe-gate.sh < event.json        chạy thật 1 event với payload giả
+bunx tsc --noEmit -p tsconfig.json        typecheck fixtures/ + extensions/
+bunx eslint fixtures --max-warnings 0     lint thư mục fixture
 claude --debug -p "review the diff"      rồi grep "Loading hooks from plugin: fe-kit" ~/.claude/debug/latest
 ```
 
@@ -205,11 +184,11 @@ claude --debug -p "review the diff"      rồi grep "Loading hooks from plugin: 
 | bug + owner/decision, thiếu repro | deny + nêu `Trigger/Expected/Actual` thiếu, exit 0 |
 | bug + owner/decision + đủ repro | allow + inject rule, exit 0 |
 | PostToolUse + bug | sinh lệnh viết UT fail-on-Actual, exit 0 |
-| SessionStart(compact) + transcript frontend | nạp lại fe-implementation + bundle |
+| SessionStart(compact) + transcript frontend | nạp lại fe-implementation + bundle + review_context |
 | PreCompact + transcript frontend | in "Keep these rules in the summary" |
 | PostToolUse file còn conflict marker | stderr "Conflict markers remain", exit 2 |
 | PostToolUse `<repo>/.claude/rules.sh` exit 1 | stderr "VI PHẠM RULE", exit 2 |
-| prompt có `review` | inject `review_context` (rule + playbook path) — chỉ khi user yêu cầu |
+| prompt `review diff trước commit` | inject `review_context` (rule + playbook path) |
 | prompt `xung đột merge` | inject `conflict-fix.md` |
 | decision nằm ở transcript subagent (`agent_id`) | allow nhờ nhánh `subagent_transcript()` |
 | wording-only edit, transcript rỗng | allow — token diff `scripts/wording.py`, không cần nhãn |

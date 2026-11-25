@@ -7,3 +7,10 @@ __pycache__/
 .agentsroom/fork-context-*.txt
 .agentsroom/transfer-context-*.txt
 .agentsroom/handoff-context-*.txt
+.openidea/
+
+node_modules/
+reports/
+.stryker-tmp/
+.scratch/
+.fe-kit/handoff.approved
