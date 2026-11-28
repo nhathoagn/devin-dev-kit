@@ -10,12 +10,14 @@ surface (a guard, validator, `Result` type, or signature); `correctness` and
 behaviour. Lenses with no checklist items answer a question about the diff or
 the test suite, not a catalogue of defects.
 
-Run: python3 scripts/review_lenses.py list [--pass 1|2|invariants] [--diff BASE..HEAD]
+Run: python3 scripts/review_lenses.py list [--pass 1|2|invariants|all] [--diff BASE..HEAD]
      python3 scripts/review_lenses.py items <lens>
      python3 scripts/review_lenses.py brief <lens>
 
-list: print each lens of one pass (all lenses without --pass) and the checklist
-items it owns. One lens goes to one reviewer.
+list: print each lens of one pass and the checklist items it owns. The default pass
+is 1; pass `all` prints every lens. `--diff` only echoes the range into the output
+for the fan-out brief — it does not filter or change the lens set. One lens goes to
+one reviewer.
 items: print the item codes of one lens, comma-separated, for a task brief.
 brief: print the task brief of a no-item lens (audit, probe, coverage,
 regression, invariant).
