@@ -69,23 +69,141 @@ if isinstance(tool_input, dict):
     cwd = tool_input.get("workdir") or ""
 cwd = cwd or os.environ.get("DEVIN_PROJECT_DIR") or os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
 
-def git_commit(command, cwd):
-    # (repo root, stages all tracked files) when the command runs git commit, else None.
+GIT_BIN_RE = re.compile(r"^git(?:\.exe)?$", re.I)
+GIT_GROUP_TOKENS = {"(", ")", "{", "}"}
+GIT_VALUE_GLOBALS = {"--git-dir", "--work-tree", "--exec-path", "--html-path",
+                     "--man-path", "--info-path", "--namespace"}
+GIT_INNER_SHELLS = {"sh", "bash", "zsh", "dash", "ksh", "fish"}
+
+def segment_dir(tokens, index):
+    # Folder a `cd`/`pushd` segment enters; None when it is unreadable or not a cd.
+    words = [token for token in tokens[index:] if token not in GIT_GROUP_TOKENS]
+    if not words or words[0] not in ("cd", "pushd"):
+        return None
+    if len(words) == 1:
+        return os.path.expanduser("~") if words[0] == "cd" else None
+    target = words[1]
+    if target.startswith("~"):
+        target = os.path.expanduser(target)
+    if target == "-" or bash_target.UNKNOWN_PATH_RE.search(target):
+        return None
+    return bash_target.local_path(target)
+
+def segment_env(tokens, index):
+    # NAME=value assignments before the command token (e.g. GIT_DIR=/x/.git).
+    env = {}
+    for token in tokens[:index]:
+        if bash_target.ASSIGN_TOKEN_RE.match(token):
+            env[token.split("=", 1)[0]] = token.split("=", 1)[1]
+    return env
+
+def inner_command(tokens, index):
+    # Command text a wrapper runs: bash -c 'cmd' or eval 'cmd'; "" when none.
+    name = os.path.basename(tokens[index]).lower()
+    if name == "eval":
+        return " ".join(tokens[index + 1:])
+    if name in GIT_INNER_SHELLS:
+        args = tokens[index + 1:]
+        position = 0
+        while position < len(args):
+            token = args[position]
+            if token == "-c":
+                return args[position + 1] if position + 1 < len(args) else ""
+            if token == "--" or not token.startswith("-"):
+                break
+            position += 1
+    return ""
+
+def git_stages_extra(args):
+    # True when commit flags change more files than the index holds: -a/--all stages
+    # every tracked change, -i/--include and -o/--only commit files the index never
+    # staged. Either way the staged-only handoff check is not enough.
+    for token in args:
+        if token == "--":
+            break
+        if token in ("--all", "--include", "--only") \
+                or token.startswith("--include=") or token.startswith("--only="):
+            return True
+        if re.match(r"^-[a-zA-Z]+$", token) and re.search(r"[aio]", token[1:]):
+            return True
+    return False
+
+def git_commit(command, cwd, depth=0):
+    # (repo root, stages extra files) when the command runs git commit, else None.
     if not bash_target or not command:
         return None
+    command = bash_target.expand_variables(command)[:bash_target.COMMAND_MAX_BYTES]
+    run_dir = cwd or "."
     for tokens, _ in bash_target.shell_segments(command):
         index = bash_target.command_index(tokens)
-        if index >= len(tokens) or os.path.basename(tokens[index]) != "git":
+        if index >= len(tokens):
             continue
-        rest = tokens[index + 1:]
-        if "commit" not in rest:
+        name = os.path.basename(tokens[index])
+        folder = segment_dir(tokens, index)
+        if folder is not None:
+            run_dir = folder
             continue
-        root = cwd or "."
-        for position, token in enumerate(rest):
-            if token == "-C" and position + 1 < len(rest):
-                candidate = rest[position + 1]
-                root = candidate if os.path.isabs(candidate) else os.path.join(cwd or ".", candidate)
-        return os.path.abspath(root), ("-a" in rest or "--all" in rest)
+        env = segment_env(tokens, index)
+        if not GIT_BIN_RE.match(name):
+            # One recursion level unwraps `bash -c 'git commit ...'`/`eval '...'`.
+            if depth == 0:
+                inner = inner_command(tokens, index)
+                if inner:
+                    found = git_commit(inner, run_dir, depth + 1)
+                    if found:
+                        return found
+            continue
+        base = run_dir
+        git_dir = env.get("GIT_DIR")
+        work_tree = env.get("GIT_WORK_TREE")
+        args = tokens[index + 1:]
+        position = 0
+        while position < len(args):
+            token = args[position]
+            if token == "--":
+                break
+            if token == "-C":
+                position += 1
+                if position < len(args):
+                    candidate = args[position]
+                    base = candidate if os.path.isabs(candidate) else os.path.join(base, candidate)
+                position += 1
+                continue
+            if token == "-c" or token in GIT_VALUE_GLOBALS:
+                position += 1
+                if position < len(args):
+                    if token == "--git-dir":
+                        git_dir = args[position]
+                    elif token == "--work-tree":
+                        work_tree = args[position]
+                position += 1
+                continue
+            if token.startswith("--git-dir="):
+                git_dir = token.split("=", 1)[1]
+                position += 1
+                continue
+            if token.startswith("--work-tree="):
+                work_tree = token.split("=", 1)[1]
+                position += 1
+                continue
+            if token.startswith("-"):
+                # Unknown globals are skipped; an unknown value-taking one (e.g.
+                # --exec-path /x) leaves its value looking like the subcommand.
+                position += 1
+                continue
+            break
+        # The subcommand is the first positional. Past `commit`, -C/-c mean
+        # --reuse-message/--reedit-message, never a directory switch.
+        if position >= len(args) or args[position] != "commit":
+            continue
+        root = base
+        if work_tree:
+            root = work_tree if os.path.isabs(work_tree) else os.path.join(base, work_tree)
+        elif git_dir:
+            git_path = git_dir if os.path.isabs(git_dir) else os.path.join(base, git_dir)
+            parent, tail = os.path.split(os.path.normpath(git_path))
+            root = parent if tail == ".git" else git_path
+        return os.path.abspath(root), git_stages_extra(args[position + 1:])
     return None
 
 def handoff_disabled(root):
@@ -230,7 +348,13 @@ CONTINUATION_RE = re.compile(
 )
 
 def is_continuation(text):
-    return bool(CONTINUATION_RE.match(text or ""))
+    text = text or ""
+    if text.lstrip().startswith("[Request interrupted"):
+        return True
+    if text.strip() == "[image]":
+        # An image-only message is a screenshot for the task in flight, not a new one.
+        return True
+    return bool(CONTINUATION_RE.match(text))
 
 # --- session state -------------------------------------------------------
 # prompt_id rotates on every user message, but a continuation ("ok", "làm đi")
@@ -266,7 +390,7 @@ request_key = state.get("request") or ""
 
 # The user can type labels in the message itself; they count like an echo declaration.
 PROMPT_LABEL_RE = re.compile(
-    r"^\s*(?:[-*]\s*)?(?:Runtime owner|Decision|Trigger|Steps?|Expected|Actual)[*_]*[:：].+$",
+    r"^\s*(?:[-*]\s*)?(?:Runtime owner|Decision|Interface depth|Trigger|Steps?|Expected|Actual)[*_]*[:：].+$",
     re.I | re.M,
 )
 
@@ -307,14 +431,24 @@ HEADING_RE = re.compile(r"^\s*#{1,6}\s")
 SECTION_DECISION_RE = re.compile(r"[:：]\s*[*_`]*\s*" + DECISION_WORD, re.I)
 OWNER_LINE_RE = re.compile(r"Runtime owner[*_]*[:：][ \t]*[*_`]*[ \t]*([^\s,`]+)", re.I)
 OWNER_PLACEHOLDER_RE = re.compile(
-    r"^(?:tbd|tba|todo|to-do|none|null|nil|unknown|n/a|na|pending|placeholder|x+|\.+|\?+|-+|<.*)$",
+    r"^(?:tbd\w*|tba|todo|to-do|none|no[- ]?one|nobody|null|nil|unknown|n/?a|na|pending|placeholder|"
+    r"not[- ]?applicable|see|the|this|that|below|above|same|\$.*|%s|x+|\.+|\?+|-+|<.*)$",
     re.I,
 )
 # The decision word must follow the colon, so "Decision: do not reuse" is not a reuse decision.
 DECISION_LINE_RE = re.compile(r"Decision[*_]*[:：][ \t]*[*_`]*[ \t]*" + DECISION_WORD, re.I)
+# A menu of the allowed values is the template, not a decision.
+DECISION_MENU_RE = re.compile(
+    r"\b(?:reuse|extend|feature-local|shared|n/a)\b\s*[/,|]\s*(?:reuse|extend|feature-local|shared|n/a)\b",
+    re.I,
+)
+
+DEPTH_WORD = r"\b(designed|unchanged)\b"
+# The depth word must follow the colon, so the template menu "<designed|unchanged>" is not a depth label.
+DEPTH_LINE_RE = re.compile(r"Interface depth[*_]*[:：][ \t]*[*_`]*[ \t]*" + DEPTH_WORD, re.I)
 
 def clean_label_value(value):
-    return value.strip("*_` \t.,;:")
+    return value.strip("*_` \t.,;:()[]{}")
 
 def owner_value(line):
     match = OWNER_LINE_RE.search(line)
@@ -326,9 +460,10 @@ def owner_value(line):
     return value
 
 def decisions_found():
-    # Returns (owner found, decision found) for the current request.
+    # Returns (owner found, decision found, depth found) for the current request.
     found_owner = False
     found_reuse = False
+    found_depth = False
     for _, text in scoped_entries():
         in_reuse_section = False
         for line in text.splitlines():
@@ -336,29 +471,34 @@ def decisions_found():
                 in_reuse_section = True
             elif HEADING_RE.match(line):
                 in_reuse_section = False
-            if "|" in line:
+            if line.lstrip().startswith("|"):
                 continue
             if owner_value(line):
                 found_owner = True
-            if DECISION_LINE_RE.search(line):
+            menu = DECISION_MENU_RE.search(line)
+            if not menu and DECISION_LINE_RE.search(line):
                 found_reuse = True
-            elif in_reuse_section and SECTION_DECISION_RE.search(line):
+            elif not menu and in_reuse_section and SECTION_DECISION_RE.search(line):
                 found_reuse = True
-        if found_owner and found_reuse:
+            if DEPTH_LINE_RE.search(line):
+                found_depth = True
+        if found_owner and found_reuse and found_depth:
             break
-    return found_owner, found_reuse
+    return found_owner, found_reuse, found_depth
 
 def decisions_present():
     return all(decisions_found())
 
 def missing_note(bug_edit):
     # Name what the gate did not find, so the agent does not retry the same edit.
-    owner, reuse = decisions_found()
+    owner, reuse, depth = decisions_found()
     missing = []
     if not owner:
         missing.append("`Runtime owner:` with a name")
     if not reuse:
         missing.append("`Decision:` with reuse, extend, feature-local, shared, or n/a")
+    if not depth:
+        missing.append("`Interface depth:` with designed or unchanged")
     if bug_edit:
         found = reproduce_found()
         missing += ["`%s:` with a value" % key for key, ok in found.items() if not ok]
@@ -530,7 +670,10 @@ def plugin_root():
 
 def load_rule(filename):
     rule_path = os.path.join(plugin_root(), "rules", filename)
-    text = open(rule_path, encoding="utf-8").read()
+    try:
+        text = open(rule_path, encoding="utf-8").read()
+    except (OSError, UnicodeDecodeError):
+        return ""
     return re.sub(r"^---\n.*?\n---\n*", "", text, count=1, flags=re.S).strip()
 
 def project_root(start):
@@ -658,7 +801,8 @@ if name == "PreToolUse" and tool_name == "exec" and not path:
 def declare_command(bug_edit):
     target = os.path.basename(path) or "this file"
     parts = ['"Runtime owner: <the component or hook that runs %s>"' % target,
-             '"Decision: <reuse|extend|feature-local|shared|n/a>"']
+             '"Decision: <reuse|extend|feature-local|shared|n/a>"',
+             '"Interface depth: <designed|unchanged>"']
     if bug_edit:
         parts += ['"Trigger: <steps>"', '"Expected: <value>"', '"Actual: <value>"']
     return "echo " + " ".join(parts)
