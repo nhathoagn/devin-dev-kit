@@ -554,6 +554,10 @@ DECISION_MENU_RE = re.compile(
     re.I,
 )
 
+DEPTH_WORD = r"\b(designed|unchanged)\b"
+# The depth word must follow the colon, so the template menu "<designed|unchanged>" is not a depth label.
+DEPTH_LINE_RE = re.compile(r"Interface depth[*_]*[:：][ \t]*[*_`]*[ \t]*" + DEPTH_WORD, re.I)
+
 def clean_label_value(value):
     return value.strip("*_` \t.,;:()[]{}")
 
@@ -567,9 +571,10 @@ def owner_value(line):
     return value
 
 def decisions_found():
-    # Returns (owner found, decision found) for the current request.
+    # Returns (owner found, decision found, depth found) for the current request.
     found_owner = False
     found_reuse = False
+    found_depth = False
     for _, text in scoped_entries():
         in_reuse_section = False
         for line in text.splitlines():
@@ -586,21 +591,25 @@ def decisions_found():
                 found_reuse = True
             elif not menu and in_reuse_section and SECTION_DECISION_RE.search(line):
                 found_reuse = True
-        if found_owner and found_reuse:
+            if DEPTH_LINE_RE.search(line):
+                found_depth = True
+        if found_owner and found_reuse and found_depth:
             break
-    return found_owner, found_reuse
+    return found_owner, found_reuse, found_depth
 
 def decisions_present():
     return all(decisions_found())
 
 def missing_note(bug_edit):
     # Name what the gate did not find, so the agent does not retry the same edit.
-    owner, reuse = decisions_found()
+    owner, reuse, depth = decisions_found()
     missing = []
     if not owner:
         missing.append("`Runtime owner:` with a name")
     if not reuse:
         missing.append("`Decision:` with reuse, extend, feature-local, shared, or n/a")
+    if not depth:
+        missing.append("`Interface depth:` with designed or unchanged")
     if bug_edit:
         found = reproduce_found()
         missing += ["`%s:` with a value" % key for key, ok in found.items() if not ok]
@@ -619,6 +628,7 @@ def missing_note(bug_edit):
     if tool_name == "Bash":
         note += " A Bash command that writes a frontend file is gated like Edit. Do not route the change through Bash to skip the gate."
     return note
+
 
 CONFLICT_MARKER_RE = re.compile(r"^(?:<{7}|={7}|>{7}|\|{7})(?:\s|$)", re.M)
 
@@ -757,7 +767,8 @@ if name == "PreToolUse" and tool_name == "Bash" and not path:
 def declare_command(bug_edit):
     target = os.path.basename(path) or "this file"
     parts = ['"Runtime owner: <the component or hook that runs %s>"' % target,
-             '"Decision: <reuse|extend|feature-local|shared|n/a>"']
+             '"Decision: <reuse|extend|feature-local|shared|n/a>"',
+             '"Interface depth: <designed|unchanged>"']
     if bug_edit:
         parts += ['"Trigger: <steps>"', '"Expected: <value>"', '"Actual: <value>"']
     return "echo " + " ".join(parts)

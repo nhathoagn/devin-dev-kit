@@ -11,9 +11,9 @@ import re
 import shlex
 import tempfile
 
-LABEL_RE = re.compile(r"(?:Runtime owner|Decision|Trigger|Steps?|Expected|Actual)[*_]*[:：]", re.I)
+LABEL_RE = re.compile(r"(?:Runtime owner|Decision|Interface depth|Trigger|Steps?|Expected|Actual)[*_]*[:：]", re.I)
 LABEL_BREAK_RE = re.compile(
-    r"\\n(?=(?:Runtime owner|Decision|Trigger|Steps?|Expected|Actual)[*_]*[:：])", re.I
+    r"\\n(?=(?:Runtime owner|Decision|Interface depth|Trigger|Steps?|Expected|Actual)[*_]*[:：])", re.I
 )
 ASSIGNMENT_RE = re.compile(r"^[A-Za-z_]\w*=")
 OPERATORS = {"|", "||", "&&", ";", "&", "(", ")", "<", "<<", ">", ">>", ">&", "&>"}

@@ -50,7 +50,7 @@ LENSES = [
         "title": "Hợp đồng, caller, spec, test",
         "pass": [1, 2],
         "items": ["C8", "TY1", "TY2", "TY3", "TY4", "TY5", "TY6", "TY7", "TY8", "TY9",
-                  "F17", "F18", "F20"],
+                  "O2", "O7", "O8", "O10", "O13", "F17", "F18", "F20"],
     },
     {
         "name": "security",
@@ -70,6 +70,7 @@ LENSES = [
         "title": "Kiến trúc và dùng lại",
         "pass": 1,
         "items": ["D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9",
+                  "O1", "O3", "O4", "O5", "O6", "O9", "O15", "O16",
                   "F2", "F3", "F4", "F5", "F6", "F7", "F14", "F22", "F23", "F24"],
     },
     {
@@ -77,7 +78,7 @@ LENSES = [
         "title": "Tên và mở rộng",
         "pass": 1,
         "items": ["N1", "N2", "N3", "N4", "N5", "E1", "E2", "E3", "E4", "E5", "E6",
-                  "F8", "F15", "F21"],
+                  "O14", "F8", "F15", "F21"],
     },
     {
         "name": "performance",

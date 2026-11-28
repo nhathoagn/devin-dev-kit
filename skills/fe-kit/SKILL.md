@@ -83,19 +83,25 @@ Record these after the playbook tells you to read `references/code-quality.md`.
 
 Fill the sweep table in that file. One row for each heading from Names through Design and behavior. A blank row is not done. A `clean` row with no search is not done. A review does not fill this table. It writes each finding in the report in `playbooks/review-ui.md`.
 
-### 5. Senior Audit
+### 5. Interface Depth
+
+Record this after the playbook tells you to read `references/posd-checklist.md`, and only when the change creates or changes an interface — a component prop list, a hook return, an exported function signature, an error path. Otherwise write `n/a` and say why.
+
+Fill the Interface Depth table. One row for each interface the change creates or changes. Score it against O1, O2, O7, O8, O10, O13 of `references/posd-checklist.md` before implementation when the playbook orders it, and re-score after the last edit. An interface with a FAIL that stays needs the reason written. A blank row is not done.
+
+### 6. Senior Audit
 
 Record this after the playbook tells you to read `references/audit.md`.
 
 Fill the Audit table in that file. One row for each lens, from Reuse through Extension. Each finding names `file:line`, a severity (`high`, `medium`, `low`), and the cost if it stays. A `clean` row with no search is not done. A review does not fill this table. It writes each finding in the report in `playbooks/review-ui.md`.
 
-### 6. Feature Isolation
+### 7. Feature Isolation
 
 Record this only after the playbook tells you to read `references/feature-isolation.md`, and only when the task adds new behavior to existing UI. Otherwise write `n/a` and say why. A bug fix or a pure refactor never gains a flag from this section.
 
 Fill the table in that file: one flag (default = old behavior), read once at the entry owner, new logic in its own files, existing files touched only at a listed seam, and a deletion test.
 
-### 7. Verify
+### 8. Verify
 
 Before finishing:
 
@@ -112,6 +118,7 @@ Before finishing:
 - For a change that must not alter output, compare the screen before and after, byte for byte.
 - Do not finish while a code-quality row is blank, when the playbook asks for that table.
 - Do not finish while an audit row is blank, when the playbook asks for the audit.
+- Do not finish while an interface-depth row is blank, when the playbook asks for that table.
 
 ## Output Template
 
@@ -155,6 +162,11 @@ Files in scope:
 | Form screens | | |
 | Make it shorter | | |
 | Design and behavior | | |
+
+## Interface Depth
+| Interface (name:file) | O1 deep | O2 defaults | O7 no special in general | O8 complexity down | O10 errors defined away | O13 clean contract | Verdict |
+|---|---|---|---|---|---|---|---|
+|  |  |  |  |  |  |  |  |
 
 ## Audit
 | Lens | Search or trace | Finding (file:line) | Severity | Cost if it stays |
