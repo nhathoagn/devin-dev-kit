@@ -1,4 +1,4 @@
-# Agent rules — devin-dev-kit
+# Agent rules — plugin-architecture
 
 ## Trước khi báo xong
 Chạy và báo **lệnh + exit code** cho từng cổng dưới đây. Một cổng đỏ thì chưa xong.

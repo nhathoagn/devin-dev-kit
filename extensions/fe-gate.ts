@@ -185,9 +185,9 @@ function editPair(input: unknown): { old: string; new: string } | undefined {
 function editList(input: unknown): { old_string: string; new_string: string }[] | undefined {
   if (typeof input !== "object" || input === null) return undefined;
   const record = input as Record<string, unknown>;
-  if (!Array.isArray(record.edits)) return undefined;
+  if (!Array.isArray(record["edits"])) return undefined;
   const edits: { old_string: string; new_string: string }[] = [];
-  for (const raw of record.edits) {
+  for (const raw of record["edits"]) {
     const pair = editPair(raw);
     if (pair) edits.push({ old_string: pair.old, new_string: pair.new });
   }
@@ -320,8 +320,12 @@ function runGate(payload: GatePayload): Promise<GateOutcome> {
   child.stderr.on("data", (chunk: string) => {
     stderr += chunk;
   });
-  child.on("error", () => settle({ kind: "pass" }));
-  child.on("close", (code) => settle(parseOutcome(payload, code, stdout, stderr)));
+  child.on("error", () => {
+    settle({ kind: "pass" });
+  });
+  child.on("close", (code) => {
+    settle(parseOutcome(payload, code, stdout, stderr));
+  });
   // A gate that exits before reading stdin breaks the pipe; close still fires.
   child.stdin.on("error", () => {});
   child.stdin.end(JSON.stringify(payload));
