@@ -97,6 +97,9 @@ function contentBlocks(content: unknown, role: unknown): Record<string, unknown>
       blocks.push({ type: "text", text: raw.text });
     } else if (role === "assistant" && kind === "thinking" && "thinking" in raw && typeof raw.thinking === "string") {
       blocks.push({ type: "thinking", thinking: raw.thinking });
+    } else if (role === "assistant" && kind === "toolCall" && typeof raw.id === "string" && typeof raw.name === "string") {
+      // fe-gate verifies declarations by matching the echo call id to a successful result.
+      blocks.push({ type: "tool_use", id: raw.id, name: raw.name === "bash" ? "Bash" : raw.name, input: raw.arguments ?? {} });
     }
   }
   return blocks;
@@ -112,7 +115,24 @@ function mapTranscript(entries: unknown): string {
     const message: unknown = raw.message;
     if (typeof message !== "object" || message === null) continue;
     if (!("role" in message) || !("content" in message)) continue;
-    if (message.role !== "user" && message.role !== "assistant") continue;
+    if (message.role !== "user" && message.role !== "assistant" && message.role !== "toolResult") continue;
+    if (message.role === "toolResult") {
+      const result = message as Record<string, unknown>;
+      const id = typeof result["toolCallId"] === "string" ? result["toolCallId"] : "";
+      if (!id) continue;
+      lines.push(JSON.stringify({
+        type: "user",
+        message: {
+          content: [{
+            type: "tool_result",
+            tool_use_id: id,
+            content: result["content"],
+            is_error: result["isError"] === true,
+          }],
+        },
+      }));
+      continue;
+    }
     const blocks = contentBlocks(message.content, message.role);
     if (blocks.length > 0) {
       lines.push(JSON.stringify({ type: message.role, message: { content: blocks } }));
@@ -185,9 +205,9 @@ function editPair(input: unknown): { old: string; new: string } | undefined {
 function editList(input: unknown): { old_string: string; new_string: string }[] | undefined {
   if (typeof input !== "object" || input === null) return undefined;
   const record = input as Record<string, unknown>;
-  if (!Array.isArray(record.edits)) return undefined;
+  if (!Array.isArray(record["edits"])) return undefined;
   const edits: { old_string: string; new_string: string }[] = [];
-  for (const raw of record.edits) {
+  for (const raw of record["edits"]) {
     const pair = editPair(raw);
     if (pair) edits.push({ old_string: pair.old, new_string: pair.new });
   }
@@ -320,8 +340,12 @@ function runGate(payload: GatePayload): Promise<GateOutcome> {
   child.stderr.on("data", (chunk: string) => {
     stderr += chunk;
   });
-  child.on("error", () => settle({ kind: "pass" }));
-  child.on("close", (code) => settle(parseOutcome(payload, code, stdout, stderr)));
+  child.on("error", () => {
+    settle({ kind: "pass" });
+  });
+  child.on("close", (code) => {
+    settle(parseOutcome(payload, code, stdout, stderr));
+  });
   // A gate that exits before reading stdin breaks the pipe; close still fires.
   child.stdin.on("error", () => {});
   child.stdin.end(JSON.stringify(payload));

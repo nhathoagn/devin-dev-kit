@@ -10,12 +10,14 @@ surface (a guard, validator, `Result` type, or signature); `correctness` and
 behaviour. Lenses with no checklist items answer a question about the diff or
 the test suite, not a catalogue of defects.
 
-Run: python3 scripts/review_lenses.py list [--pass 1|2|invariants] [--diff BASE..HEAD]
+Run: python3 scripts/review_lenses.py list [--pass 1|2|invariants|all] [--diff BASE..HEAD]
      python3 scripts/review_lenses.py items <lens>
      python3 scripts/review_lenses.py brief <lens>
 
-list: print each lens of one pass (all lenses without --pass) and the checklist
-items it owns. One lens goes to one reviewer.
+list: print each lens of one pass and the checklist items it owns. The default pass
+is 1; pass `all` prints every lens. `--diff` only echoes the range into the output
+for the fan-out brief — it does not filter or change the lens set. One lens goes to
+one reviewer.
 items: print the item codes of one lens, comma-separated, for a task brief.
 brief: print the task brief of a no-item lens (audit, probe, coverage,
 regression, invariant).
@@ -43,14 +45,14 @@ LENSES = [
         "name": "correctness",
         "title": "Đúng biên và luồng",
         "pass": [1, 2],
-        "items": ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "F9", "F12", "F13", "F16", "F19", "F25"],
+        "items": ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C9", "F9", "F12", "F13", "F16", "F19", "F25"],
     },
     {
         "name": "contract",
         "title": "Hợp đồng, caller, spec, test",
         "pass": [1, 2],
         "items": ["C8", "TY1", "TY2", "TY3", "TY4", "TY5", "TY6", "TY7", "TY8", "TY9",
-                  "F17", "F18", "F20"],
+                  "O2", "O7", "O8", "O10", "O13", "F17", "F18", "F20"],
     },
     {
         "name": "security",
@@ -70,6 +72,7 @@ LENSES = [
         "title": "Kiến trúc và dùng lại",
         "pass": 1,
         "items": ["D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9",
+                  "O1", "O3", "O4", "O5", "O6", "O9", "O15", "O16",
                   "F2", "F3", "F4", "F5", "F6", "F7", "F14", "F22", "F23", "F24"],
     },
     {
@@ -77,7 +80,7 @@ LENSES = [
         "title": "Tên và mở rộng",
         "pass": 1,
         "items": ["N1", "N2", "N3", "N4", "N5", "E1", "E2", "E3", "E4", "E5", "E6",
-                  "F8", "F15", "F21"],
+                  "O14", "F8", "F15", "F21"],
     },
     {
         "name": "performance",

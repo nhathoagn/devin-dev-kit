@@ -45,11 +45,24 @@ def run_git(root, *args):
 
 
 def staged_files(root):
-    return [line.strip() for line in run_git(root, "diff", "--cached", "--name-only", "--diff-filter=ACMR").splitlines() if line.strip()]
+    return [_unquote_git_path(line) for line in run_git(root, "diff", "--cached", "--name-only", "--diff-filter=ACMR").splitlines() if line.strip()]
+
+
+def _unquote_git_path(line):
+    # git quotes a path when it holds whitespace or non-ascii: "src/my file.ts" or
+    # "src/\\303\\251.ts". Strip the quotes and decode the octal escapes.
+    text = line.strip()
+    if len(text) >= 2 and text.startswith('"') and text.endswith('"'):
+        try:
+            body = text[1:-1].encode("latin-1").decode("unicode_escape").encode("latin-1").decode("utf-8")
+            return body
+        except (UnicodeDecodeError, ValueError):
+            return text[1:-1]
+    return text
 
 
 def changed_files(root):
-    return [line.strip() for line in run_git(root, "diff", "--name-only", "--diff-filter=ACMR").splitlines() if line.strip()]
+    return [_unquote_git_path(line) for line in run_git(root, "diff", "--name-only", "--diff-filter=ACMR").splitlines() if line.strip()]
 
 
 def source_files(files):
@@ -117,7 +130,10 @@ def problems(root, files=None, require_confirmation=True):
         if not re.search(pattern, text, re.M):
             found.append("section `## %s` is missing" % name)
     for path in sources:
-        if path not in text and ("./" + path) not in text:
+        # Boundary-aware: `form.tsx` named must not cover `order-form.tsx`, and a bare
+        # extension in prose must not count as the file being written about.
+        escaped = re.escape(path)
+        if not re.search(r"(?<![\w./-])" + escaped + r"(?![\w-])", text):
             found.append("`%s` is not named in the handoff" % path)
     if not require_confirmation:
         return found

@@ -1,6 +1,7 @@
 {
   "name": "fe-kit",
-  "version": "1.42.0",  "private": true,
+  "version": "1.45.0",
+  "private": true,
   "description": "Architecture ownership, reuse-first authoring, and React performance checks before non-trivial frontend work.",
   "license": "MIT",
   "omp": {
@@ -20,6 +21,6 @@
     "test": "bun test",
     "typecheck": "bunx tsc --noEmit -p tsconfig.json",
     "lint": "bunx eslint fixtures --max-warnings 0",
-    "gates": "bun run typecheck && bun run lint && bun run test"
+    "gates": "bunx tsc --noEmit -p tsconfig.json && bunx eslint fixtures --max-warnings 0 && python3 scripts/test_review_lenses.py && python3 scripts/test_review_check.py && python3 scripts/test_review_packages.py && python3 scripts/test_review_record.py && python3 scripts/test_wording.py && python3 scripts/test_bash_target.py && python3 scripts/test_fe_gate.py && python3 scripts/test_gate_drift.py"
   }
 }

@@ -1,6 +1,45 @@
 # Changelog
 
 
+## 1.45.0
+
+Whole-kit audit found enforcement gaps the docs claimed did not exist: the bash write detector missed indirect writes, the commit gate parsed `git commit` only in its simplest form, echo-declared labels were saved before execution and could unlock a request the shell never ran, image-only messages split a request scope, the omp transcript mapping dropped tool calls entirely so declaration verification silently failed, and the Devin gate drifted behind the Claude gate by two releases. Verified with new payload-level suites before fixing: `test_bash_target.py` (90 tests), `test_fe_gate.py` (41), `test_gate_drift.py` behavioral parity for both hosts.
+
+- `scripts/bash_target.py`: write detection now covers rsync/dd/install/patch/`git apply`/tar-unzip extraction, git worktree rewrites (`checkout`/`restore`/`stash`/`reset`/`clean`/`merge`/`pull`/`rebase`/`revert`/`cherry-pick`), recursive `eval`/`bash -c`/`source`/direct script execution (depth-capped at 3), `xargs -I` feeding a writer, `cp -r` folder destinations, and `shutil.copy*`/`os.rename`/`os.replace` destinations inside probe scripts. Binary magic bytes keep `/usr/bin/curl` from being scanned, remote `host:path` destinations are excluded, and a dynamic write no longer pins the first mentioned code path.
+- `scripts/fe-gate.py`: the git-commit parse handles `commit` subcommand position, `-C`/`-c` root flags, `--git-dir`/`GIT_DIR=`, `cd` chains, env assignments, and `eval` wrappers — a `git commit -am` after `cd` now releases the same files as the plain form. Image-only user messages no longer start a new request scope (labels declared for the typed request survive a screenshot follow-up). Labels are saved with `executed=False` and promoted only when the echo's tool result arrives successful — on omp, `extensions/fe-gate.ts` now maps `toolCall`/`toolResult` entries into the transcript the gate reads, so verification actually runs instead of falling open. Note: sessions loaded before this version keep the stale extension mapping until restarted. The per-edit review-context injection is removed: it repeated unchanged guidance on every edit and crowded the context window.
+- `scripts/devin_gate.py`: parity port — DECISION_MENU, OWNER_PLACEHOLDER, clean_label, is_continuation, the `Interface depth` label from 1.44.0, guarded `load_rule` so a missing rules file cannot crash the hook, and `devin-gate.sh` probes for python3 before invoking. `PROMPT_LABEL_RE` carries every label the gate requires, including Interface depth.
+- `scripts/review_packages.py` merge: dedupe across format variants (bare basename vs full path citing the same `file:line`), `REF_RE` accepts paths with spaces and dotfiles, findings under `###` headings are no longer silently dropped, and merge reports what it could not parse instead of swallowing it. `scripts/review_record.py` validates `--head` as a real sha and refuses a dirty tree. `scripts/handoff.py` substring matching fixed for `core.quotepath` output.
+- `scripts/wording.py`: the behaviorless-change lexer no longer emits tokens for import/export specifiers, narrows STYLE_KEYS (a `month` or `default` key is not style), treats COPY_WORDS endpoints as copy, and resolves jsx_child template paths.
+- `scripts/test_gate_drift.py` (new): behavioral parity test — the same unlabelled edit must be blocked by both gates and the same prompt-typed labels must open both, so a future port cannot silently drift.
+- Docs drift corrected across `rules/review-diff.md`, SKILL.md judgement list, README badge/fields/F25/rules, test-checklist counts, review_lenses docstring, invariants classification, and the SKILL.md template contradiction.
+- `bun run gates` now enforces all eight Python suites plus tsc and eslint from one entry; CI calls that single command instead of duplicating the list.
+- Version 1.45.0 in `.claude-plugin/plugin.json`, `.devin-plugin/plugin.json`, `package.json`, and both places in `marketplace.json`.
+
+## 1.44.0
+
+Version 1.43.0 wired POSD into the playbooks and the lens review, but the Interface Depth table was prose-enforced only — the same weakness step 7 had. The rewrite flow (`author-loop.md`) created interfaces with no design step, the two files disagreed on severity, and no eval covered any of it.
+
+- `scripts/fe-gate.py` + `scripts/label_store.py`: the declaration gains a third label, `Interface depth:` with `designed` or `unchanged`. A gated edit without it is denied, the same as a missing `Runtime owner:` or `Decision:`. `designed` means the change creates or widens an interface and the Interface Depth table carries it; `unchanged` means it does not. The template menu `<designed|unchanged>` does not count. Verified against a payload harness: a three-label declaration passes, two labels deny naming the missing depth label, and the menu form denies.
+- `rules/fe-implementation.md` and the edit-gate line of all five playbooks plus `author-loop.md` step 1 name the third label.
+- `playbooks/author-loop.md` gains step 3: interfaces designed before they are written — a rewrite's interfaces scored against O1, O2, O7, O8, O10, O13 before the first edit, because the lens pass only sees them after the diff exists. Steps renumbered; the "repeat step 3" back-reference updated.
+- `references/posd-checklist.md` Giới hạn: the minor-severity cap now applies only to authoring-time scoring (refactor, cleanup, new-ui, fix-bug). In `REVIEW_CHECKLIST.md` an O finding on a new interface scores on the common scale, because callers multiply after merge and the interface cannot be pulled back.
+- `evals/evals.json` gains three evals (24–26): a new hook must be scored in Interface Depth before implementation; a fix adding an error path must score O10 before adding the throw; a lens reviewer must catch a shallow hook that exposes its fetch machine's internals (O1/O8) with a non-passing verdict.
+- Version 1.44.0 in `.claude-plugin/plugin.json`, `.devin-plugin/plugin.json`, `package.json`, and both places in `marketplace.json`.
+
+
+## 1.43.0
+
+POSD existed as a checklist read only during refactor and cleanup — design debt cleanup, not design debt prevention — and no review lens scored it, so a diff could add a shallow module or push complexity up to its callers and pass review.
+
+- `references/REVIEW_CHECKLIST.md` gains 14 items O1–O10, O13–O16 in diff-scored form — shallow module, overexposed interface, information leakage, temporal decomposition, pass-through method and variable, special-general mixture, pull complexity down, conjoined methods, define errors out of existence, implementation contaminating the interface, vague name, hard to describe, nonobvious code. O11 and O12 stay in D2 and N4 where the checklist already scores them.
+- `scripts/review_lenses.py`: the O items join their owning lenses — `structure` (O1, O3–O6, O9, O15, O16), `contract` (O2, O7, O8, O10, O13), `naming` (O14). Coverage test updated by construction: every checklist item still sits in exactly one lens.
+- `SKILL.md` gains field 5 "Interface Depth" and the matching output-template table: one row per interface the change creates or changes, scored against O1, O2, O7, O8, O10, O13. A blank row is not done.
+- `playbooks/new-ui.md` gains step 5: interfaces are designed against `references/posd-checklist.md` before implementation, not discovered in the diff — FAILs fixed at design time, rows re-scored after the last edit.
+- `playbooks/fix-bug.md`: a fix that changes an interface or adds an error path scores the widened surface against O7, O8, O10 — is the new error definable away, is work pushed up to the caller.
+- `playbooks/refactor-ui.md` and `cleanup.md` step 7 now require the Interface Depth table for interfaces the change creates or changes, replacing the read-only instruction.
+- `references/posd-checklist.md` "Khi nào chạy" rewritten for the four flows; review-diff row notes the O items live in `REVIEW_CHECKLIST.md` so a lens reviewer does not read this file.
+- Version 1.43.0 in `.claude-plugin/plugin.json`, `.devin-plugin/plugin.json`, `package.json`, and both places in `marketplace.json`.
+
 
 ## 1.42.0
 

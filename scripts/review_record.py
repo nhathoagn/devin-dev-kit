@@ -53,7 +53,9 @@ def _uncommitted(root):
 
 
 def save(root, report_text, head=None, branch=None, allow_dirty=False):
-    if not head and not allow_dirty:
+    # The uncommitted check never goes away: --head names which commit the review is
+    # about, it does not turn the working tree clean. --allow-dirty is the only skip.
+    if not allow_dirty:
         dirty = _uncommitted(root)
         if dirty:
             raise RecordError("commit the reviewed code first, because save records HEAD. Not committed: %s"
@@ -61,6 +63,9 @@ def save(root, report_text, head=None, branch=None, allow_dirty=False):
     head = head or _git(root, "rev-parse", "HEAD")
     if not re.fullmatch(r"[0-9a-f]{7,40}", head):
         raise RecordError("head `%s` is not a commit sha" % head)
+    kind = subprocess.run(["git", "-C", root, "cat-file", "-t", head], capture_output=True, text=True)
+    if kind.returncode != 0 or kind.stdout.strip() != "commit":
+        raise RecordError("head `%s` is not a commit in this repo" % head)
     path = record_path(root, branch)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8", newline="\n") as handle:

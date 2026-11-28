@@ -50,23 +50,141 @@ if isinstance(tool_input, dict):
 
 cwd = event.get("cwd") or ""
 
-def git_commit(command, cwd):
-    # (repo root, stages all tracked files) when the command runs git commit, else None.
+GIT_BIN_RE = re.compile(r"^git(?:\.exe)?$", re.I)
+GIT_GROUP_TOKENS = {"(", ")", "{", "}"}
+GIT_VALUE_GLOBALS = {"--git-dir", "--work-tree", "--exec-path", "--html-path",
+                     "--man-path", "--info-path", "--namespace"}
+GIT_INNER_SHELLS = {"sh", "bash", "zsh", "dash", "ksh", "fish"}
+
+def segment_dir(tokens, index):
+    # Folder a `cd`/`pushd` segment enters; None when it is unreadable or not a cd.
+    words = [token for token in tokens[index:] if token not in GIT_GROUP_TOKENS]
+    if not words or words[0] not in ("cd", "pushd"):
+        return None
+    if len(words) == 1:
+        return os.path.expanduser("~") if words[0] == "cd" else None
+    target = words[1]
+    if target.startswith("~"):
+        target = os.path.expanduser(target)
+    if target == "-" or bash_target.UNKNOWN_PATH_RE.search(target):
+        return None
+    return bash_target.local_path(target)
+
+def segment_env(tokens, index):
+    # NAME=value assignments before the command token (e.g. GIT_DIR=/x/.git).
+    env = {}
+    for token in tokens[:index]:
+        if bash_target.ASSIGN_TOKEN_RE.match(token):
+            env[token.split("=", 1)[0]] = token.split("=", 1)[1]
+    return env
+
+def inner_command(tokens, index):
+    # Command text a wrapper runs: bash -c 'cmd' or eval 'cmd'; "" when none.
+    name = os.path.basename(tokens[index]).lower()
+    if name == "eval":
+        return " ".join(tokens[index + 1:])
+    if name in GIT_INNER_SHELLS:
+        args = tokens[index + 1:]
+        position = 0
+        while position < len(args):
+            token = args[position]
+            if token == "-c":
+                return args[position + 1] if position + 1 < len(args) else ""
+            if token == "--" or not token.startswith("-"):
+                break
+            position += 1
+    return ""
+
+def git_stages_extra(args):
+    # True when commit flags change more files than the index holds: -a/--all stages
+    # every tracked change, -i/--include and -o/--only commit files the index never
+    # staged. Either way the staged-only handoff check is not enough.
+    for token in args:
+        if token == "--":
+            break
+        if token in ("--all", "--include", "--only") \
+                or token.startswith("--include=") or token.startswith("--only="):
+            return True
+        if re.match(r"^-[a-zA-Z]+$", token) and re.search(r"[aio]", token[1:]):
+            return True
+    return False
+
+def git_commit(command, cwd, depth=0):
+    # (repo root, stages extra files) when the command runs git commit, else None.
     if not bash_target or not command:
         return None
+    command = bash_target.expand_variables(command)[:bash_target.COMMAND_MAX_BYTES]
+    run_dir = cwd or "."
     for tokens, _ in bash_target.shell_segments(command):
         index = bash_target.command_index(tokens)
-        if index >= len(tokens) or os.path.basename(tokens[index]) != "git":
+        if index >= len(tokens):
             continue
-        rest = tokens[index + 1:]
-        if "commit" not in rest:
+        name = os.path.basename(tokens[index])
+        folder = segment_dir(tokens, index)
+        if folder is not None:
+            run_dir = folder
             continue
-        root = cwd or "."
-        for position, token in enumerate(rest):
-            if token == "-C" and position + 1 < len(rest):
-                candidate = rest[position + 1]
-                root = candidate if os.path.isabs(candidate) else os.path.join(cwd or ".", candidate)
-        return os.path.abspath(root), ("-a" in rest or "--all" in rest)
+        env = segment_env(tokens, index)
+        if not GIT_BIN_RE.match(name):
+            # One recursion level unwraps `bash -c 'git commit ...'`/`eval '...'`.
+            if depth == 0:
+                inner = inner_command(tokens, index)
+                if inner:
+                    found = git_commit(inner, run_dir, depth + 1)
+                    if found:
+                        return found
+            continue
+        base = run_dir
+        git_dir = env.get("GIT_DIR")
+        work_tree = env.get("GIT_WORK_TREE")
+        args = tokens[index + 1:]
+        position = 0
+        while position < len(args):
+            token = args[position]
+            if token == "--":
+                break
+            if token == "-C":
+                position += 1
+                if position < len(args):
+                    candidate = args[position]
+                    base = candidate if os.path.isabs(candidate) else os.path.join(base, candidate)
+                position += 1
+                continue
+            if token == "-c" or token in GIT_VALUE_GLOBALS:
+                position += 1
+                if position < len(args):
+                    if token == "--git-dir":
+                        git_dir = args[position]
+                    elif token == "--work-tree":
+                        work_tree = args[position]
+                position += 1
+                continue
+            if token.startswith("--git-dir="):
+                git_dir = token.split("=", 1)[1]
+                position += 1
+                continue
+            if token.startswith("--work-tree="):
+                work_tree = token.split("=", 1)[1]
+                position += 1
+                continue
+            if token.startswith("-"):
+                # Unknown globals are skipped; an unknown value-taking one (e.g.
+                # --exec-path /x) leaves its value looking like the subcommand.
+                position += 1
+                continue
+            break
+        # The subcommand is the first positional. Past `commit`, -C/-c mean
+        # --reuse-message/--reedit-message, never a directory switch.
+        if position >= len(args) or args[position] != "commit":
+            continue
+        root = base
+        if work_tree:
+            root = work_tree if os.path.isabs(work_tree) else os.path.join(base, work_tree)
+        elif git_dir:
+            git_path = git_dir if os.path.isabs(git_dir) else os.path.join(base, git_dir)
+            parent, tail = os.path.split(os.path.normpath(git_path))
+            root = parent if tail == ".git" else git_path
+        return os.path.abspath(root), git_stages_extra(args[position + 1:])
     return None
 
 def handoff_disabled(root):
@@ -373,6 +491,9 @@ def is_continuation(text):
     # "ok", "làm đi", and an interrupt continue the current task. Everything else starts one.
     if text.lstrip().startswith("[Request interrupted"):
         return True
+    if text.strip() == "[image]":
+        # An image-only message is a screenshot for the task in flight, not a new one.
+        return True
     return bool(CONTINUATION_RE.match(text))
 
 def request_scope(path):
@@ -452,6 +573,22 @@ def payload_prompt_id():
     return value if isinstance(value, str) and value else ""
 
 def own_request_id(path):
+    # The active request is the latest non-continuation user message. A rotating prompt id
+    # counts only when it belongs to that same head message: a continuation turn (an "ok",
+    # an image-only screenshot) shares the request of the message it continues.
+    entries = parse_transcript(path) if path and os.path.isfile(path) else []
+    for entry in reversed(entries):
+        if entry.get("type") != "user" or entry.get("isMeta") or entry.get("isCompactSummary"):
+            continue
+        texts = [clean_text(text) for text in person_texts(entry)]
+        texts = [text for text in texts if text.strip()]
+        if not texts:
+            continue
+        entry_id = entry_request_id(entry) or "\n".join(texts)
+        if any(is_continuation(text) for text in texts):
+            # The head is a continuation: the request it continues owns this turn,
+            return latest_user_request(path)[1] or payload_prompt_id()
+        return payload_prompt_id() or entry_id
     return payload_prompt_id() or latest_user_request(path)[1]
 
 def request_boundary(entries):
@@ -492,6 +629,35 @@ def transcript_declarations(path, request_id):
                 lines.extend(label_store.declared_lines(command))
     return lines
 
+def promote_declarations(transcript):
+    # The store saves labels before the echo runs. Promote them once the transcript
+    # shows the echo call succeeded — independent of prompt-id matching, because hosts
+    # differ in what they write per entry.
+    if not label_store or not transcript or not os.path.isfile(transcript):
+        return
+    entries = parse_transcript(transcript)
+    success = set()
+    for entry in entries:
+        for tool_id, is_error in entry_tool_results(entry):
+            if not is_error:
+                success.add(tool_id)
+    if not success:
+        return
+    proven = []
+    for entry in entries:
+        if entry.get("type") != "assistant":
+            continue
+        for tool_id, command in entry_bash_calls(entry):
+            if tool_id in success:
+                proven.extend(label_store.declared_lines(command))
+    if not proven:
+        return
+    own = event.get("agent_id") or ""
+    own_request = own_request_id(transcript)
+    main_request = latest_user_request(transcript)[1] if own else own_request
+    for agent_id, request in (("", main_request),) + (((own, own_request),) if own else ()):
+        label_store.promote(label_session(), agent_id, request, proven)
+
 def declared_texts():
     # Labels from an echo declaration of the latest request. A subagent also sees the main agent's labels.
     if not label_store:
@@ -500,6 +666,10 @@ def declared_texts():
     own = event.get("agent_id") or ""
     own_request = own_request_id(main)
     main_request = latest_user_request(main)[1] if own else own_request
+    # Promotion comes before the load: a saved-but-never-executed declaration must stay shut.
+    promote_declarations(main)
+    if own:
+        promote_declarations(subagent_transcript())
     agent_ids = [""]
     if own:
         agent_ids.append(own)
@@ -554,6 +724,10 @@ DECISION_MENU_RE = re.compile(
     re.I,
 )
 
+DEPTH_WORD = r"\b(designed|unchanged)\b"
+# The depth word must follow the colon, so the template menu "<designed|unchanged>" is not a depth label.
+DEPTH_LINE_RE = re.compile(r"Interface depth[*_]*[:：][ \t]*[*_`]*[ \t]*" + DEPTH_WORD, re.I)
+
 def clean_label_value(value):
     return value.strip("*_` \t.,;:()[]{}")
 
@@ -567,9 +741,10 @@ def owner_value(line):
     return value
 
 def decisions_found():
-    # Returns (owner found, decision found) for the current request.
+    # Returns (owner found, decision found, depth found) for the current request.
     found_owner = False
     found_reuse = False
+    found_depth = False
     for _, text in scoped_entries():
         in_reuse_section = False
         for line in text.splitlines():
@@ -586,21 +761,25 @@ def decisions_found():
                 found_reuse = True
             elif not menu and in_reuse_section and SECTION_DECISION_RE.search(line):
                 found_reuse = True
-        if found_owner and found_reuse:
+            if DEPTH_LINE_RE.search(line):
+                found_depth = True
+        if found_owner and found_reuse and found_depth:
             break
-    return found_owner, found_reuse
+    return found_owner, found_reuse, found_depth
 
 def decisions_present():
     return all(decisions_found())
 
 def missing_note(bug_edit):
     # Name what the gate did not find, so the agent does not retry the same edit.
-    owner, reuse = decisions_found()
+    owner, reuse, depth = decisions_found()
     missing = []
     if not owner:
         missing.append("`Runtime owner:` with a name")
     if not reuse:
         missing.append("`Decision:` with reuse, extend, feature-local, shared, or n/a")
+    if not depth:
+        missing.append("`Interface depth:` with designed or unchanged")
     if bug_edit:
         found = reproduce_found()
         missing += ["`%s:` with a value" % key for key, ok in found.items() if not ok]
@@ -619,6 +798,7 @@ def missing_note(bug_edit):
     if tool_name == "Bash":
         note += " A Bash command that writes a frontend file is gated like Edit. Do not route the change through Bash to skip the gate."
     return note
+
 
 CONFLICT_MARKER_RE = re.compile(r"^(?:<{7}|={7}|>{7}|\|{7})(?:\s|$)", re.M)
 
@@ -745,7 +925,7 @@ FLUSH_WAIT_SECONDS = 0.3
 if name == "PreToolUse" and tool_name == "Bash" and not path:
     # A declaration is allowed. Its labels are saved for the gated edits of the same request.
     transcript = event.get("transcript_path") or ""
-    saved = label_store.save(label_session(), event.get("agent_id") or "", own_request_id(transcript), declared)
+    saved = label_store.save(label_session(), event.get("agent_id") or "", own_request_id(transcript), declared, executed=False)
     note = "fe-kit recorded these labels for this request: %s. Retry the edit now." % "; ".join(declared)
     if not saved and declared_only():
         note = "fe-kit could not save the labels, because the state folder is not writable. Tell the user."
@@ -757,7 +937,8 @@ if name == "PreToolUse" and tool_name == "Bash" and not path:
 def declare_command(bug_edit):
     target = os.path.basename(path) or "this file"
     parts = ['"Runtime owner: <the component or hook that runs %s>"' % target,
-             '"Decision: <reuse|extend|feature-local|shared|n/a>"']
+             '"Decision: <reuse|extend|feature-local|shared|n/a>"',
+             '"Interface depth: <designed|unchanged>"']
     if bug_edit:
         parts += ['"Trigger: <steps>"', '"Expected: <value>"', '"Actual: <value>"']
     return "echo " + " ".join(parts)
@@ -998,8 +1179,9 @@ elif name == "PreToolUse":
     if path_hit:
         bodies.append(load_rule("fe-implementation.md"))
     if source_hit:
+        # Review instructions are not injected on every source edit: review rules apply
+        # only when the user asks for a review. The edit gate already injects implementation rules.
         bodies.append(rule_bundle())
-        bodies.append(review_context())
     if file_has_markers(full_path) or repo_in_conflict(cwd):
         bodies.append(load_rule("conflict-fix.md"))
 

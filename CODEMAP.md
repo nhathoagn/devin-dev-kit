@@ -67,8 +67,8 @@ plugin-architecture
 │   │   ├── playbooks/       9 playbook: new-ui, fix-bug, refactor-ui, perf-ui, review-ui, review-diff, review-invariants, cleanup, author-loop — mỗi playbook gọi references/
 │   │   ├── references/      chi tiết: ownership, reuse, performance, code-quality, audit, REVIEW_CHECKLIST + review-checks (bảng F-item) + review-output (bản report người đọc), feature-isolation, external,
 │   │   │                    handoff (gate trước commit), smells-checklist + fowler-checklist + posd-checklist
-│   │   │                    + tidy-checklist + test-checklist (bộ chấm SM/F/O/T/U), patterns, frontend-moves, codemap-host-report
-│   │   └── evals/           evals.json + triggers.json + 2 report eval (e2e-gate, ut-review)
+│   │   │                    + tidy-checklist + test-checklist (bộ chấm SM/F/O/T/U), patterns, frontend-moves
+│   │   └── evals/           evals.json + triggers.json; reports/ chứa 2 report eval (e2e-gate, ut-review)
 │   ├── ut-report/
 │   │   ├── SKILL.md         xuất báo cáo UT 1 màn hình ra .xlsx
 │   │   └── scripts/build_report.py  YAML case → xlsx (cần pyyaml, openpyxl)
@@ -166,7 +166,7 @@ Báo cáo: Verdict đứng đầu, mỗi miss là 1 câu, xong rồi dừng.
 ## Verify — chạy gì để chắc map đúng
 
 ```text
-python3 scripts/review_lenses.py list --pass 1   7 lens pass 1 (6 checklist + audit); --pass 2 và --pass invariants cho nhóm khác
+python3 scripts/review_lenses.py list --pass 1   9 lens pass 1 (8 checklist + audit); --pass 2 và --pass invariants cho nhóm khác
 cat skills/fe-kit/evals/triggers.json    16 query mẫu: should_trigger true/false — kiểm intent regex
 sh scripts/fe-gate.sh < event.json        chạy thật 1 event với payload giả
 bunx tsc --noEmit -p tsconfig.json        typecheck fixtures/ + extensions/

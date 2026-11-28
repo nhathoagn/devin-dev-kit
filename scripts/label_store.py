@@ -11,9 +11,9 @@ import re
 import shlex
 import tempfile
 
-LABEL_RE = re.compile(r"(?:Runtime owner|Decision|Trigger|Steps?|Expected|Actual)[*_]*[:：]", re.I)
+LABEL_RE = re.compile(r"(?:Runtime owner|Decision|Interface depth|Trigger|Steps?|Expected|Actual)[*_]*[:：]", re.I)
 LABEL_BREAK_RE = re.compile(
-    r"\\n(?=(?:Runtime owner|Decision|Trigger|Steps?|Expected|Actual)[*_]*[:：])", re.I
+    r"\\n(?=(?:Runtime owner|Decision|Interface depth|Trigger|Steps?|Expected|Actual)[*_]*[:：])", re.I
 )
 ASSIGNMENT_RE = re.compile(r"^[A-Za-z_]\w*=")
 OPERATORS = {"|", "||", "&&", ";", "&", "(", ")", "<", "<<", ">", ">>", ">&", "&>"}
@@ -182,8 +182,11 @@ def _write(path, data):
         json.dump(data, handle, ensure_ascii=False)
     os.replace(temp, path)
 
-def save(session, agent_id, request_id, lines):
+def save(session, agent_id, request_id, lines, executed=True):
     # Labels of another prompt are dropped, so they do not open a later one.
+    # Hosts without a reliable post-execution signal keep the historical trusted behavior.
+    # fe-gate passes executed=False for shell echo labels because it can promote them later
+    # from the transcript after the echo succeeds; a denied or failed command must not count.
     if not session or not lines:
         return False
     path = _state_path(session, agent_id)
@@ -193,11 +196,45 @@ def save(session, agent_id, request_id, lines):
         lock = _lock(path)
         data = _read(path)
         if data.get("request") != request_id or not isinstance(data.get("lines"), list):
-            data = {"request": request_id, "lines": []}
+            data = {"request": request_id, "lines": [], "executed": []}
+        if not isinstance(data.get("executed"), list):
+            data["executed"] = []
         for line in lines:
             if line not in data["lines"]:
                 data["lines"].append(line)
+            if executed and line not in data["executed"]:
+                data["executed"].append(line)
         _write(path, data)
+    except OSError:
+        return False
+    finally:
+        if lock is not None:
+            _unlock(lock)
+    return True
+
+
+def promote(session, agent_id, request_id, lines):
+    # Mark stored labels as executed once a successful echo of them is visible.
+    if not session or not lines:
+        return False
+    path = _state_path(session, agent_id)
+    lock = None
+    try:
+        lock = _lock(path)
+        data = _read(path)
+        if data.get("request") != request_id or not isinstance(data.get("lines"), list):
+            return False
+        executed = data.get("executed")
+        if not isinstance(executed, list):
+            executed = []
+        changed = False
+        for line in lines:
+            if line in data["lines"] and line not in executed:
+                executed.append(line)
+                changed = True
+        if changed:
+            data["executed"] = executed
+            _write(path, data)
     except OSError:
         return False
     finally:
@@ -213,4 +250,11 @@ def load(session, agent_id, request_id):
     if data.get("request") != request_id:
         return []
     lines = data.get("lines")
-    return [line for line in lines if isinstance(line, str)] if isinstance(lines, list) else []
+    if not isinstance(lines, list):
+        return []
+    executed = data.get("executed")
+    if not isinstance(executed, list):
+        # State written before the pending rule counts fully: the hook that wrote it
+        # had no way to keep a failed echo out, so old entries are legacy-trusted.
+        return [line for line in lines if isinstance(line, str)]
+    return [line for line in lines if isinstance(line, str) and line in executed]

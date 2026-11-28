@@ -14,8 +14,7 @@ No third-party parser is used: the hook must run with the system python3 and no
 node_modules. Anything the lexer cannot read raises ValueError, and the caller
 treats that as "not wording-only" (fail closed).
 
-Run the unit matrix with: python3 scripts/test_wording.py
-The exit code is the number of failures.
+Tests: python3 scripts/test_wording.py
 """
 import re
 
@@ -39,8 +38,7 @@ COPY_COMPOUNDS = frozenset((
     "ariaroledescription",
 ))
 STYLE_KEYS = frozenset((
-    "sm", "md", "lg", "xl", "2xl", "base", "default", "month", "day", "week",
-    "hour", "minute", "second", "year",
+    "sm", "md", "lg", "xl", "2xl", "base", "default",
 ))
 COPY_ATTRS = frozenset((
     "title", "aria-label", "aria-description", "aria-placeholder", "aria-valuetext",
@@ -702,29 +700,39 @@ def _skip_import_or_export(state, name):
             continue
         if char == "{":
             depth += 1
+            _emit(state, "op", "{")
             state["i"] += 1
             continue
         if char == "}":
             depth -= 1
+            _emit(state, "op", "}")
             state["i"] += 1
             continue
         if depth == 0 and char in "\"'" and name == "export":
             _lex_string(state, char, {"kind": "import"}, role="import_source")
             return
-        if depth == 0 and source.startswith("from", state["i"]) and (state["i"] + 4 >= n or source[state["i"] + 4] not in IDENT_PART):
-            state["i"] += 4
-            _skip_ws(state)
-            if state["i"] < n and source[state["i"]] in "\"'":
-                _lex_string(state, source[state["i"]], {"kind": "import"}, role="import_source")
-                return
-            raise ValueError("import without source")
+        if char in IDENT_START:
+            ident = _read_ident(state)
+            _emit(state, "id", ident)
+            if depth == 0 and ident == "from":
+                _skip_ws(state)
+                if state["i"] < n and source[state["i"]] in "\"'":
+                    _lex_string(state, source[state["i"]], {"kind": "import"}, role="import_source")
+                    return
+                raise ValueError("import without source")
+            continue
         if depth == 0 and char in "\"'" and name == "import":
             _lex_string(state, char, {"kind": "import"}, role="import_source")
             return
         if depth == 0 and char in ";\n":
             if char == ";":
+                _emit(state, "op", ";")
                 state["i"] += 1
             return
+        if char in ",*":
+            _emit(state, "op", char)
+            state["i"] += 1
+            continue
         state["i"] += 1
     if state["i"] == start_after:
         raise ValueError("empty import")
@@ -995,8 +1003,68 @@ def _operand_of_code(tokens, index):
     return False
 
 
+PATH_LIKE_RE = re.compile(r"^(?:https?://|\.?\.?/)[A-Za-z0-9._~+/-]*$")
+
+def _path_like(token):
+    # A URL or path-shaped literal is data the behavior reads, not copy — its key or
+    # context does not matter. `/v1/users` under apiLabel, `/api/${id}` in a JSX child.
+    value = token.get("value") or ""
+    return bool(PATH_LIKE_RE.match(value.strip()))
+
+
+
+def _style_key_in_object(tokens, index, key):
+    # Responsive keys (sm, md, base) mean style only inside an object that looks like a
+    # size or variant table — several style-set keys as siblings. A lone `base` key in a
+    # data object is data. Scan the enclosing braces for sibling keys.
+    if key not in STYLE_KEYS:
+        return False
+    depth = 0
+    start = -1
+    for cursor in range(index - 1, -1, -1):
+        text = tokens[cursor]["text"] if tokens[cursor]["kind"] == "op" else ""
+        if text in (")", "]", "}"):
+            depth += 1
+        elif text in ("(", "[", "{"):
+            if depth == 0 and text == "{":
+                start = cursor
+                break
+            depth -= 1
+    if start < 0:
+        return False
+    depth = 0
+    end = len(tokens)
+    for cursor in range(start + 1, len(tokens)):
+        text = tokens[cursor]["text"] if tokens[cursor]["kind"] == "op" else ""
+        if text == "{":
+            depth += 1
+        elif text == "}":
+            if depth == 0:
+                end = cursor
+                break
+            depth -= 1
+    siblings = 0
+    depth = 0
+    for cursor in range(start, end):
+        token = tokens[cursor]
+        text = token["text"] if token["kind"] == "op" else ""
+        if text == "{":
+            depth += 1
+            continue
+        if text == "}":
+            depth -= 1
+            continue
+        if depth == 1 and token["kind"] == "id" and token["text"] in STYLE_KEYS \
+                and cursor + 1 < len(tokens) and tokens[cursor + 1]["kind"] == "op" \
+                and tokens[cursor + 1]["text"] == ":":
+            siblings += 1
+    return siblings >= 2
+
+
 def _classify(tokens, index):
     token = tokens[index]
+    if _path_like(token):
+        return "code"
     if token.get("role") == "import_source":
         return "code"
     if token.get("role") == "jsx_attr":
@@ -1012,11 +1080,20 @@ def _classify(tokens, index):
     if key:
         # A literal under a code-named key is a value the behavior reads. An unknown key falls back
         # to the object it is assigned to, as in { save: 'Lưu' } under LABELS.
-        sink = _key_sink(key)
+        if key in STYLE_KEYS and not _style_key_in_object(tokens, index, key):
+            sink = ""
+        else:
+            sink = _key_sink(key)
         if sink:
             return sink
         name = _assignment_name(tokens, index)
-        return (_name_sink(name) or "code") if name else "code"
+        if name and _name_sink(name):
+            return _name_sink(name)
+        # No key or name sink: fall through to the callee check — a string inside
+        # cva(...) or clsx(...) still means style even when the object is small.
+        if token.get("call") and token["call"].get("sink") == "style":
+            return "style"
+        return "code"
     name = _assignment_name(tokens, index)
     if name:
         return _name_sink(name) or "code"

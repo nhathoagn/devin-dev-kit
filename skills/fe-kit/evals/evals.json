@@ -259,6 +259,38 @@
         "The finding quotes a dev/OrderEntry.java line and the new line.",
         "The finding says that no change request names the field."
       ]
+    },
+    {
+      "id": 24,
+      "prompt": "Add a useOrderSearch hook to the orders feature that fetches search results.",
+      "expected_output": "Uses playbooks/new-ui.md step 5: before any implementation the output scores the hook's interface in the Interface Depth table — one row naming the hook, scored against O1, O2, O7, O8, O10, O13. The hook's contract is designed there: callers get a narrow state object, not the raw internals of the fetch.",
+      "expectations": [
+        "The output contains an Interface Depth section with the hook named before implementation code appears.",
+        "The row scores O8 explicitly: the hook absorbs normalization, cancellation, or defaults instead of pushing them to the caller.",
+        "The declared labels include `Interface depth:` with designed or unchanged.",
+        "The hook interface is designed as a discriminated state or narrow object, not an exposure of raw useState internals."
+      ]
+    },
+    {
+      "id": 25,
+      "prompt": "The checkout total crashes when the discount code is expired. Fix it by throwing InvalidDiscountError from the validation.",
+      "expected_output": "Uses playbooks/fix-bug.md. Because the fix adds an error path, the output fills the Interface Depth row scoring O10: whether the expired-discount case can be defined out of existence — validation returning a typed invalid result or the discount being ignored — instead of a new throw every caller must handle. The trigger, expected, and actual lines are present.",
+      "expectations": [
+        "The output does not add the throw without first scoring O10 in the Interface Depth table.",
+        "The scoring names the alternative: an invalid-result return or a no-op that removes the error case.",
+        "If the throw stays, the output says why defining the error away is impossible or wrong here.",
+        "The declared labels include `Interface depth:`."
+      ]
+    },
+    {
+      "id": 26,
+      "prompt": "Review the diff before commit. The diff adds src/search/use-search.ts: export function useSearch(query) { return { results, setResults, loading, setLoading, error, setError, run } } and a SearchPage component that wires the fetch effect itself using those setters.",
+      "expected_output": "The structure-lens reviewer reports O1 (shallow module) and O8 (complexity pushed up): the hook exposes the fetch machine's internals, so the caller must reimplement the effect wiring the hook was meant to own. The verdict is not Đưa được.",
+      "expectations": [
+        "The report names the shallow-module or complexity-pushed-up problem at the hook's file:line.",
+        "The finding says the caller must know the wiring the hook should hide, or names O1/O8 in substance.",
+        "The verdict is not Đưa được."
+      ]
     }
   ]
 }
