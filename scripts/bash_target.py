@@ -1,10 +1,13 @@
 """Find the product-code file that a Bash command writes.
 
 The fe-kit gate covers Edit, Write, and MultiEdit. A Bash command can write the same file through a
-redirect, tee, cp, mv, sed -i, perl -i, or a script. write_target() checks every file the command
-writes and names the first one that gate_scope.in_scope() calls product code, so fe-gate.py can gate
-the command like Write. Shell operators are read outside quotes, and a script run by a test is not
-scanned, because its writes are fixtures.
+redirect, tee, cp, mv, rsync, install, dd, sed -i, perl -i, patch, an archive extraction, a git
+worktree rewrite (checkout/restore/stash/reset/clean/merge/pull/apply...), a wrapped command
+(eval, bash -c, xargs -I), a script run by path or source, or a script's write calls.
+write_target() checks every file the command writes and names the first one that
+gate_scope.in_scope() calls product code, so fe-gate.py can gate the command like Write. Shell
+operators are read outside quotes, and a script run by a test is not scanned, because its writes
+are fixtures.
 """
 import os
 import re
@@ -419,9 +422,10 @@ def copy_files(tokens, base, cwd):
     # When either side is a folder the destination is a write even when no source names product code:
     # `cp -r src/ dest/`, `rsync a/ b/`, `install -t`. A dest outside the repo still returns "".
     dir_dest = ""
-    if destination and (looks_dir(destination, base, cwd)
-                        or any(looks_dir(path, base, cwd) for path in sources)
-                        or len(sources) > 1):
+    remote = ":" in destination.split("/", 1)[0] if destination else False
+    if destination and not remote and (looks_dir(destination, base, cwd)
+                                       or any(looks_dir(path, base, cwd) for path in sources)
+                                       or len(sources) > 1):
         dir_dest = destination
     return targets, dynamic, dir_dest
 
@@ -897,6 +901,11 @@ def command_targets(text, base_at, cwd, depth):
                 if inner:
                     target = write_target_in(inner, cwd, run_dir=base, depth=depth + 1)
                     hits.append(target or "(runs a command string).ts")
+            elif name in INNER_SHELLS:
+                hits.append("(runs a command string or stdin).ts")
+            if name in INNER_SHELLS and not any(not arg.startswith("-") for arg in args):
+                # A bare shell reads commands from stdin, as in `curl u | sh`.
+                hits.append("(runs commands from stdin).ts")
         elif name == "xargs":
             replace = any(arg == "-i" or arg.startswith("-I") or arg.startswith("-J") for arg in args)
             if replace and any(os.path.basename(arg) in XARGS_WRITERS for arg in args):
