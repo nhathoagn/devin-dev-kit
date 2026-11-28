@@ -97,6 +97,9 @@ function contentBlocks(content: unknown, role: unknown): Record<string, unknown>
       blocks.push({ type: "text", text: raw.text });
     } else if (role === "assistant" && kind === "thinking" && "thinking" in raw && typeof raw.thinking === "string") {
       blocks.push({ type: "thinking", thinking: raw.thinking });
+    } else if (role === "assistant" && kind === "toolCall" && typeof raw.id === "string" && typeof raw.name === "string") {
+      // fe-gate verifies declarations by matching the echo call id to a successful result.
+      blocks.push({ type: "tool_use", id: raw.id, name: raw.name === "bash" ? "Bash" : raw.name, input: raw.arguments ?? {} });
     }
   }
   return blocks;
@@ -112,7 +115,24 @@ function mapTranscript(entries: unknown): string {
     const message: unknown = raw.message;
     if (typeof message !== "object" || message === null) continue;
     if (!("role" in message) || !("content" in message)) continue;
-    if (message.role !== "user" && message.role !== "assistant") continue;
+    if (message.role !== "user" && message.role !== "assistant" && message.role !== "toolResult") continue;
+    if (message.role === "toolResult") {
+      const result = message as Record<string, unknown>;
+      const id = typeof result["toolCallId"] === "string" ? result["toolCallId"] : "";
+      if (!id) continue;
+      lines.push(JSON.stringify({
+        type: "user",
+        message: {
+          content: [{
+            type: "tool_result",
+            tool_use_id: id,
+            content: result["content"],
+            is_error: result["isError"] === true,
+          }],
+        },
+      }));
+      continue;
+    }
     const blocks = contentBlocks(message.content, message.role);
     if (blocks.length > 0) {
       lines.push(JSON.stringify({ type: message.role, message: { content: blocks } }));
