@@ -18,14 +18,29 @@ VERDICTS = ("Không đưa lên", "Sửa rồi hãy đưa", "Đưa được")
 LEVELS = ("nên sửa trước", "nên sửa trong lượt này", "có thể để sau")
 SCOPE_LABELS = ("Luật đã đọc:", "Cổng:", "Độ phủ:")
 NOT_FINDINGS = ("Kết luận", "Tóm tắt", "Nguồn và độ phủ")
-REF_RE = re.compile(r"`([^`\s:]+\.[A-Za-z0-9]+):(\d+)(?:-(\d+))?`")
+REF_RE = re.compile(r"`([^`]+?):(\d+)(?:-(\d+))?`")
+BARE_NAMES = frozenset(("makefile", "dockerfile", "rakefile", "gemfile", "procfile", "license", "cmakelists.txt"))
+
+def looks_like_path(value):
+    # A citation path: dotted or slashed or dotfile. `12` of `12:30` and plain words are not paths.
+    name = value.strip()
+    if not name or "``" in name:
+        return False
+    if "/" in name or "\\" in name:
+        return True
+    base = name.rsplit("/", 1)[-1].lower()
+    if base in BARE_NAMES:
+        return True
+    if "." in name:
+        return True
+    return False
 
 
 def sections(text):
     sections = {}
     current = None
     for line in text.splitlines():
-        heading = re.match(r"^##\s+(.+?)\s*$", line)
+        heading = re.match(r"^#{2,3}\s+(.+?)\s*$", line)
         if heading:
             current = heading.group(1)
             sections.setdefault(current, [])
@@ -47,8 +62,16 @@ def _resolve_ref(root, path, candidates):
     normalized = path.replace("\\", "/")
     if os.path.isfile(os.path.join(root, normalized)):
         return normalized
-    hits = [item for item in candidates if item == normalized or item.endswith("/" + normalized)]
-    return hits[0] if len(hits) == 1 else None
+    exact = [item for item in candidates if item == normalized]
+    deeper = [item for item in candidates if item != normalized and item.endswith("/" + normalized)]
+    # A bare-basename cite means the repo-relative path, not itself: when exactly one
+    # candidate path ends with it, that path is the resolution. Two or more deeper hits
+    # are ambiguous, so only then does the exact string stand as its own key.
+    if len(deeper) == 1:
+        return deeper[0]
+    if not deeper and len(exact) == 1:
+        return exact[0]
+    return None
 
 
 def _folder(value):
@@ -158,6 +181,8 @@ def check(root, report_text, files):
 
     for match in REF_RE.finditer(report_text):
         path, start, end = match.group(1), int(match.group(2)), match.group(3)
+        if not looks_like_path(path):
+            continue
         resolved = _resolve_ref(root, path, diff_files + [item["path"] for item in scope["read"]])
         if not resolved:
             errors.append("`%s:%d` names a file that is not in the repo or the diff" % (path, start))

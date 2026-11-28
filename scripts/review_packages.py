@@ -74,6 +74,8 @@ def _ref_key(block, root=None, candidates=()):
     if not match:
         return None
     path, line = match.group(1), match.group(2)
+    if not review_check.looks_like_path(path):
+        return None
     if root is not None:
         resolved = review_check._resolve_ref(root, path, candidates)
         if resolved:
@@ -96,17 +98,22 @@ def _merge_findings(parsed, texts, root=None, candidates=()):
         lens = review_check.label_value(text, "Lens:") or "Gói %d" % number
         for block in _blocks(parts.get("Việc cần sửa", [])):
             if _ref_key(block) is None and _level(block) >= len(review_check.LEVELS):
+                # A finding with neither a citation nor a level survives as its own entry —
+                # dropping it loses exactly the finding the pipeline could not classify.
+                merged.append((_level(block), block, [lens], []))
                 continue
             key = _ref_key(block, root, candidates)
             if key is not None and key in seen:
                 index = seen[key]
                 level, kept, lenses, extra = merged[index]
                 if _level(block) < level:
-                    extra.insert(0, FINAL_LEVEL_RE.sub("", kept).strip())
+                    demoted = FINAL_LEVEL_RE.sub("", kept).strip()
+                    if demoted and not _same_spot_text(block, demoted):
+                        extra.insert(0, demoted)
                     merged[index] = (_level(block), block, lenses, extra)
                 else:
                     stripped = FINAL_LEVEL_RE.sub("", block).strip()
-                    if stripped:
+                    if stripped and not _same_spot_text(kept, stripped):
                         extra.append(stripped)
                 if lens not in lenses:
                     lenses.append(lens)
@@ -123,6 +130,15 @@ def _merge_findings(parsed, texts, root=None, candidates=()):
         if level < len(counts):
             counts[level] += 1
     return "\n\n".join(out), counts
+
+def _same_spot_text(kept, stripped):
+    # Two lenses describing one spot in the same words add nothing when concatenated.
+    if not stripped:
+        return True
+    cite_match = re.match(r"\s*`[^`]+`\s*", stripped)
+    rest = stripped[cite_match.end():] if cite_match else stripped
+    return rest.split(".", 1)[0].strip() in kept
+
 
 
 def merge(reports, root=None, candidates=()):
@@ -216,7 +232,8 @@ def main(argv=None):
         root = os.path.abspath(args.root)
         # Every path citation in any report is a resolution candidate, so a bare
         # basename in one report dedupes with the repo-relative path in another.
-        candidates = sorted(set(match.group(1) for text in texts for match in review_check.REF_RE.finditer(text)))
+        candidates = sorted({match.group(1) for text in texts for match in review_check.REF_RE.finditer(text)
+                             if review_check.looks_like_path(match.group(1))})
         if args.files or args.diff or args.staged:
             scope = project_config.resolve(root, project_config.files_from_args(root, args), "review")
             candidates = sorted(set(candidates) | set(scope["files"]) | {item["path"] for item in scope["read"]})
