@@ -14,7 +14,4 @@ jobs:
         with:
           python-version: "3.x"
       - run: bun install
-      - run: bunx tsc --noEmit -p tsconfig.json
-      - run: bunx eslint fixtures --max-warnings 0
-      - run: python3 scripts/test_review_lenses.py
-      - run: python3 scripts/test_review_check.py
+      - run: bun run gates

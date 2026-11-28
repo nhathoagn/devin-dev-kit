@@ -8,9 +8,15 @@ bunx tsc --noEmit -p tsconfig.json
 bunx eslint fixtures --max-warnings 0
 python3 scripts/test_review_lenses.py
 python3 scripts/test_review_check.py
+python3 scripts/test_review_packages.py
+python3 scripts/test_review_record.py
+python3 scripts/test_wording.py
+python3 scripts/test_bash_target.py
+python3 scripts/test_fe_gate.py
+python3 scripts/test_gate_drift.py
 ```
 
-Hai test Python là suite duy nhất của repo — không chạy `bun test` làm cổng.
+Python unittest là suite duy nhất của repo — không chạy `bun test` làm cổng.
 
 ## Review flow (`scripts/`)
 - Fan-out review: `python3 scripts/review_lenses.py list --pass 1` in danh sách lens pass 1 (8 checklist lens + `audit` đi `references/audit.md`); `--pass 2` in lens pass 2 (`correctness`, `contract`, `probe`, `invariant`); `--pass invariants` in `coverage` + `regression` cho playbook `review-invariants.md`.
