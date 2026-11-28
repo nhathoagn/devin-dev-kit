@@ -45,6 +45,7 @@ Bản người đọc là `references/review-output.md`. Không đưa mã checkl
 - [ ] **C6** Test race, double-submit, TOCTOU. FAIL nếu có shared state mà không xử lý. Không có shared state thì N/A.
 - [ ] **C7** Test retry có ghi trùng không. FAIL nếu retry không idempotent. Không có retry, job, webhook thì N/A.
 - [ ] **C8** Test invariant của module. FAIL nếu một caller bị gãy, kể cả caller ngoài diff. Diff đổi chữ ký, giá trị trả về, hoặc hành vi của thứ được export thì tìm mọi nơi gọi trong repo. Không có caller thì N/A.
+- [ ] **C9** Test fix theo giá trị cụ thể thay vì tận gốc. FAIL nếu diff sửa bug bằng nhánh so khớp với giá trị cụ thể của input — một literal, một shape cụ thể — không phải một nhóm của domain (enum, union, type, range), trong khi nguyên nhân gốc còn nguyên: input chưa normalize ở biên, invariant bị phá ở thượng nguồn, hoặc thiếu validation. Dấu hiệu: giá trị thứ hai cùng hình dạng sẽ tái phát và phải vá tiếp. Fix đúng là normalize hoặc validate tại biên nhận input, hoặc sửa nơi phá invariant. Branch trên enum hoặc domain hợp lệ, kể cả so với literal, không tính. Không có fix bug trong diff thì N/A.
 - [ ] **D1** Test file mới có đúng layer không. FAIL nếu đặt sai thư mục theo convention repo. Repo không có convention thì N/A.
 - [ ] **D2** Test có dùng helper sẵn không. FAIL nếu viết song song thứ đã có. Không có helper cho việc đó thì N/A.
 - [ ] **D3** Test abstraction chưa cần. FAIL nếu thêm lớp cho tương lai. Không thêm thì PASS.
