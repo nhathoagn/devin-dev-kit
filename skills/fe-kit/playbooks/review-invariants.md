@@ -15,7 +15,7 @@ The findings mode measures the reviewer, not the code. Two passes over the same 
 
 ## Lenses
 
-Two, not eight:
+Two, not nine:
 
 - `coverage` — `python3 ../../scripts/review_lenses.py brief coverage`
 - `regression` — `python3 ../../scripts/review_lenses.py brief regression`
@@ -55,11 +55,13 @@ Ngoại lệ duy nhất: **lượt bảo trì playbook** (chạy trên fixture �
 
 **Threat model quyết định severity.** Input ngoài threat model (Proxy, getter ném, object nội bộ) tối đa `minor`. Input trong threat model mà sai tiền/kho = `blocker`. Không có ngoại lệ.
 
-**Lens chặn merge:** correctness, invariant, coverage, regression, probe. **Lens không chặn:** hygiene, naming, structure, performance, contract — gom thành danh sách cải tiến, xử lý theo lô.
+**Lens chặn merge:** correctness, invariant, coverage, regression, probe. **Lens không chặn:** hygiene, naming, structure, performance, contract, security, tests, audit — gom thành danh sách cải tiến, xử lý theo lô.
 
 **Ngân sách.** Tối đa 3 lượt review sau lượt đầu. Hết ngân sách mà vẫn có fingerprint mới ở nhóm chặn merge → dừng và báo người: vấn đề ở spec hoặc thiết kế, không phải code.
 
 **Luật hai lần.** Cùng một cơ chế bị sửa lần thứ hai mà vẫn sinh finding cùng nhóm → dừng vá, viết ghi chú thiết kế ≤ 1 trang, thiết kế lại. Đây là luật đã thiếu trong vòng lặp 16 pass của module checkout.
+
+Các đường dẫn cụ thể trong file này (`extensions/<module>/__review__/`) và lệnh test (`bun`, `stryker`) mô tả cấu trúc của dự án gốc; repo khác thay bằng module layout và lệnh test của mình, cơ chế giữ nguyên.
 
 ## Việc của người sửa (không phải của reviewer)
 

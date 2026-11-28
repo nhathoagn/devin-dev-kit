@@ -157,6 +157,7 @@ Files in scope:
 | Names | | |
 | Helpers | | |
 | Arguments and values | | |
+| Flat by default | | |
 | Types and schemas | | |
 | Files | | |
 | Form screens | | |
@@ -179,13 +180,14 @@ Files in scope:
 
 ## Feature Isolation
 | Item | Value |
-| Flag (name, source, default) | |
-| Read at (one entry owner) | |
-| New files | |
-| Existing files touched (seam) | |
-| Off-path guarantee | |
-| Deletion test | |
-| Flag owner / removal date | |
+| Flag name and source (system searched) | |
+| Default (must be old behavior) and why | |
+| Flag read at (one entry owner) | |
+| New files (all under the owning feature) | |
+| Existing files touched (the seam, one line each) | |
+| Off-path guarantee (no fetch / render / payload change) | |
+| Deletion test (what delete + seam removal restores) | |
+| Flag owner and removal date or ticket | |
 
 ## Departures / Notes
 -

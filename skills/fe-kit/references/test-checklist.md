@@ -2,7 +2,7 @@
 
 Checklist theo *Unit Testing: Principles, Practices, and Patterns* (Vladimir Khorikov) và *The Art of Unit Testing* (Roy Osherove). Mỗi mục trả **PASS** / **FAIL** / **N/A**. 17 items, U1–U17.
 
-Bốn checklist trước chấm **production code**; file này chấm **test code**. `REVIEW_CHECKLIST.md` nhóm T (T1–T10) chấm test *có tồn tại không* và các lỗi cơ bản (deterministic, skip, xanh-giả) — item nào trùng ghi ngay ở mục đó, đếm một lần.
+Bốn checklist trước chấm **production code**; file này chấm **test code**. `REVIEW_CHECKLIST.md` nhóm T (T1–T11) chấm test *có tồn tại không* và các lỗi cơ bản (deterministic, skip, xanh-giả) — item nào trùng ghi ngay ở mục đó, đếm một lần.
 
 Luật trung tâm của sách: **chỉ kiểm chứng observable behavior, không kiểm chứng implementation detail**. Test pin vào implementation = false positive chờ xảy ra: refactor giữ nguyên hành vi mà test vẫn đỏ — và test đỏ-giả dạy team bỏ qua mọi test đỏ.
 
@@ -47,7 +47,7 @@ Finding viết theo cấu trúc `item → nguyên tắc → vì sao`:
 
 | Việc | Cách dùng |
 |---|---|
-| Diff thêm/sửa test | Đi cả 16; U1 là gate — test pin vào implementation thì các trụ cột khác không cứu được |
+| Diff thêm/sửa test | Đi cả 17; U1 là gate — test pin vào implementation thì các trụ cột khác không cứu được |
 | Refactor đụng test (`playbooks/refactor-ui.md`) | Test vỡ vì behavior đổi là đúng; test vỡ vì nó pin vào implementation là U1 FAIL của test đó, ghi vào finding |
 | Viết test mới | Chọn style output/state-based khi được; mock chỉ ở boundary cho unmanaged dep |
 | Review suite cũ | U1, U5, U6, U11 bắt phần lớn fragile tests |

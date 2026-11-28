@@ -50,7 +50,7 @@ Finding viết theo cấu trúc `red flag → nguyên tắc → vì sao`:
 | New UI (`playbooks/new-ui.md`) | O1, O2, O7, O8, O10, O13 trước khi viết implementation — interface thiết kế ở đây, không phát hiện trong diff. Mỗi interface một hàng trong bảng Interface Depth của output template |
 | Fix bug (`playbooks/fix-bug.md`) | Chỉ khi fix đổi interface hoặc thêm error path: chấm O7, O8, O10 trên phần widen — error mới có định nghĩa away được không, việc có bị đẩy lên caller không |
 | Refactor/cleanup (`playbooks/refactor-ui.md`, `cleanup.md`) | Sau `smells-checklist.md` + `fowler-checklist.md`: file này hỏi các câu hai kia không hỏi — module có deep không, complexity bị đẩy lên caller không, error case có định nghĩa được không. Ghi bảng Interface Depth cho interface refactor tạo hoặc đổi |
-| Review diff | 14 items O1–O10, O13–O16 nằm trong `REVIEW_CHECKLIST.md` và được lens `structure` (O1, O3–O6, O9, O15, O16), `contract` (O2, O7, O8, O10, O13), `naming` (O14) chấm — reviewer không cần đọc file này. O11 ở D2, O12 ở N4. Chỉ chấm red flag diff **tạo thêm**, không chấm cái có sẵn |
+| Review diff | 14 items O1–O10, O13–O16 nằm trong `REVIEW_CHECKLIST.md` và được lens `structure` (O1, O3–O6, O9, O15, O16), `contract` (O2, O7, O8, O10, O13), `naming` (O14) chấm — reviewer không cần đọc file này. O11 nằm ở D2 cho helper viết lại và ở F4 cho cụm statement lặp; O12 ở N4. Chỉ chấm red flag diff **tạo thêm**, không chấm cái có sẵn |
 | Viết finding | Đặt tên red flag trong câu `red flag → nguyên tắc → vì sao` |
 
 ## Giới hạn

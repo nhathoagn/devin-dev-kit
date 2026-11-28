@@ -1,6 +1,6 @@
 # fe-kit
 
-![version](https://img.shields.io/badge/version-1.22.0-blue)
+![version](https://img.shields.io/badge/version-1.44.0-blue)
 ![hosts](https://img.shields.io/badge/hosts-Claude%20Code%20%7C%20Devin%20%7C%20omp-6e56cf)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -76,7 +76,7 @@ agent `fe-kit:reviewer` read-only; omp dùng một context sạch chỉ nhận d
 
 ---
 
-## Sáu field phải điền trước khi code
+## Tám field phải điền trước khi code
 
 Skill `fe-kit` đi theo đúng thứ tự này. Mỗi playbook nói field nào bắt buộc.
 
@@ -86,8 +86,10 @@ Skill `fe-kit` đi theo đúng thứ tự này. Mỗi playbook nói field nào b
 | 2 | Reuse-first | Responsibility, exemplar và lý do khớp, quyết định `reuse` / `extend` / `feature-local` / `shared`, khoảng trống, vì sao chọn shape đó |
 | 3 | Performance | Waterfall, bundle, data fetching, re-render, loading / error / empty, rủi ro còn lại. Kiểm đúng thứ tự này |
 | 4 | Code Quality | Bảng sweep từ Names tới Design and behavior. Dòng `clean` mà không có search thì chưa xong |
-| 5 | Senior Audit | Sáu lăng kính: reuse, kiến trúc, luồng vận hành, xử lý lỗi, tải, khả năng mở rộng. Mỗi finding có `file:line`, mức `high` / `medium` / `low`, và cái mất nếu để nguyên |
-| 6 | Feature Isolation | Hành vi mới trên màn đã có: chỗ đặt, file mới, một call ở file cũ |
+| 5 | Interface Depth | Mỗi interface diff tạo hoặc đổi một dòng, chấm theo O1/O2/O7/O8/O10/O13 của `posd-checklist.md`. FAIL còn lại phải ghi lý do |
+| 6 | Senior Audit | Sáu lăng kính: reuse, kiến trúc, luồng vận hành, xử lý lỗi, tải, khả năng mở rộng. Mỗi finding có `file:line`, mức `high` / `medium` / `low`, và cái mất nếu để nguyên |
+| 7 | Feature Isolation | Hành vi mới trên màn đã có: chỗ đặt, file mới, một call ở file cũ |
+| 8 | Verify | Trace caller, bắt bài trùng lặp, loading / error / empty, key ổn định, không quyết vấn đề ngoài scope mà lặng lẽ mở rộng diff |
 
 ## Review diff
 
@@ -100,7 +102,7 @@ Người viết diff không được chấm diff đó.
 | Devin | Subagent `fe-kit:reviewer`, tool `read` / `grep` / `glob` / `exec`, không sửa, không commit, không spawn reviewer khác |
 
 Không đưa ghi chú của tác giả. Reviewer thiếu playbook path trong task thì dừng, không tự bịa checklist.
-Nó đi hết `references/REVIEW_CHECKLIST.md` rồi F1–F24 trong `references/review-checks.md`, và
+Nó đi hết `references/REVIEW_CHECKLIST.md` rồi F1–F25 trong `references/review-checks.md`, và
 tìm file spec của task trước khi chấm scope.
 
 Report theo `references/review-output.md`: kết luận đứng đầu (một hoặc hai câu, có đưa lên được không),
@@ -326,11 +328,11 @@ CODEMAP.md               bản đồ code: module nào gọi module nào
 
 | Tài liệu | Nội dung |
 |---|---|
-| [`skills/fe-kit/SKILL.md`](skills/fe-kit/SKILL.md) | Workflow, 6 field, hard rule |
+| [`skills/fe-kit/SKILL.md`](skills/fe-kit/SKILL.md) | Workflow, 8 field, hard rule |
 | [`skills/fe-kit/playbooks/`](skills/fe-kit/playbooks/) | Từng loại việc một file |
-| [`skills/fe-kit/references/`](skills/fe-kit/references/) | Ownership, reuse, performance, audit, checklist F1–F24 |
+| [`skills/fe-kit/references/`](skills/fe-kit/references/) | Ownership, reuse, performance, audit, checklist F1–F25 |
 | [`skills/refactor-depth-options/SKILL.md`](skills/refactor-depth-options/SKILL.md) | Ladder độ sâu refactor + khi nào phải hỏi |
-| [`rules/`](rules/) | 5 rule luôn bật, kèm ví dụ |
+| [`rules/`](rules/) | 6 rule luôn bật, kèm ví dụ |
 | [`CODEMAP.md`](CODEMAP.md) | Bản đồ kiến trúc plugin, ai gọi ai |
 | [`skills/fe-kit/CHANGELOG.md`](skills/fe-kit/CHANGELOG.md) | Vì sao mỗi rule tồn tại — kèm sự cố thật |
 
