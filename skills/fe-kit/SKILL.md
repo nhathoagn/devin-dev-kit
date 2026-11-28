@@ -122,9 +122,9 @@ Before finishing:
 
 ## Output Template
 
-Use this structure. Fill every section. Do not leave sections blank.
+Use this structure for implementation or refactoring work. Reviews use the report formats named in the review playbooks instead. Fill every section the active playbook names; a section a playbook does not name stays out of the reply rather than being padded. When the playbook names a section, do not leave it blank — write `n/a` and the reason when it truly does not apply.
 
-The edit gate and its label declaration are defined once, in `rules/fe-implementation.md`. Each playbook names the labels it needs. Also fill the sections below in the reply for the reader.
+The edit gate and its label declaration are defined once, in `rules/fe-implementation.md`. Each playbook names the labels it needs. Also fill the sections below in the reply for the reader when they are in scope.
 
 A screen review uses the Vietnamese template in `playbooks/review-ui.md` and then stops. A diff review is not written by the author. The fresh reviewer uses the template in `playbooks/review-diff.md` and then stops. Do not also fill the template below.
 ```md
